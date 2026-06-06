@@ -8,6 +8,12 @@ import { Position, Velocity, Player, Enemy } from '../utils/components.js';
 const enemyQuery = defineQuery([Enemy, Position, Velocity]);
 const playerQuery = defineQuery([Player, Position]);
 
+/**
+ * Genere un système d'IA basique où les ennemis traquent le joueur s'il est à portée, et s'arrêtent s'il s'éloigne trop.
+ * L'ennemi ne peut pas traverser les murs grâce au système de collision, mais il ne fait pas de pathfinding
+ * avancé (il se contente de foncer droit vers le joueur).
+ * @returns Une fonction système à utiliser dans le jeu.
+ */
 export function createAiSystem() {
     const ENEMY_SPEED = 150;
     const ACTIVATION_RADIUS = 800;   // L'ennemi commence à bouger

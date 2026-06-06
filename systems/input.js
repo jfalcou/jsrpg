@@ -11,7 +11,6 @@ const keys = {};
 window.addEventListener('keydown', e => keys[e.code] = true);
 window.addEventListener('keyup', e => keys[e.code] = false);
 
-// PlayerCooldowns retiré de la query — les cooldowns sont dans equippedSpells
 const playerQuery = defineQuery([Player, Position, Velocity, Facing, Dash]);
 
 export function createInputSystem() {

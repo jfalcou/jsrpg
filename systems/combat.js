@@ -13,9 +13,15 @@ const wallQuery = defineQuery([Wall, Position, Collider]);
 const playerQuery = defineQuery([Player, PlayerStats, Health]);
 const playerBodyQuery = defineQuery([Player, Position, Collider, Health]);
 
-const enemyHash = new SpatialHash(128);  // pour les collisions balles/nova
+// Pour les collisions avec les ennemis, on utilise un spatial hash pour limiter le nombre de checks à faire
+const enemyHash = new SpatialHash(128);
 
-
+/**
+ * Génére un système de combat qui gère les impacts des balles sur les murs et les ennemis, les impacts des ennemis
+ * sur le joueur, ainsi que le death sweep qui supprime les ennemis morts et donne de l'XP au joueur.
+ *
+ * @returns La fonction système à utiliser dans le jeu.
+ */
 export function createCombatSystem() {
     return function combatSystem(world, delta) {
         const bullets = bulletQuery(world);
@@ -23,7 +29,7 @@ export function createCombatSystem() {
         const walls = wallQuery(world);
         const players = playerQuery(world);
 
-        // Construction du hash des murs (une seule fois)
+        // Construction du hash des murs
         buildWallHash(world);
 
         // Reconstruction du hash ennemis à chaque frame
@@ -33,7 +39,7 @@ export function createCombatSystem() {
             enemyHash.insert(eid, Position.x[eid], Position.y[eid], Collider.width[eid], Collider.height[eid]);
         }
 
-        // 1. IMPACTS DES BALLES
+        // IMPACTS DES BALLES
         for (let i = 0; i < bullets.length; i++) {
             const bid = bullets[i];
             let bulletDestroyed = false;
@@ -55,7 +61,7 @@ export function createCombatSystem() {
 
             if (bulletDestroyed) continue;
 
-           // Collision Ennemis — uniquement les ennemis proches de la balle
+           // Collisions Ennemis — uniquement les ennemis proches de la balle
             const nearbyEnemies = enemyHash.query(bx, by, bw, bh);
             for (const eid of nearbyEnemies) {
                 if (checkAABB(bx, by, bw, bh, Position.x[eid], Position.y[eid], Collider.width[eid], Collider.height[eid])) {
@@ -96,15 +102,9 @@ export function createCombatSystem() {
 
             // Clamp à 0
             if (Health.current[pid] < 0) Health.current[pid] = 0;
-
-            // Game over
-            if (Health.current[pid] <= 0) {
-                console.log("GAME OVER");
-                // Tu peux mettre ici un vrai écran de game over plus tard
-            }
         }
 
-        // 3. LE BALAYAGE DE LA MORT ET DE L'XP (Death Sweep)
+        // 3. LE BALAYAGE DE LA MORT ET DE L'XP
         for (let j = 0; j < enemies.length; j++) {
             const eid = enemies[j];
              // Décrémentation HitFlash

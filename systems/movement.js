@@ -11,7 +11,6 @@ const spatialHash = new SpatialHash(64); // cellule de 64px = taille d'un person
 const movementQuery = defineQuery([Position, Velocity, Collider]);
 const wallQuery = defineQuery([Wall, Position, Collider]);
 
-// AJOUT : On inclut Renderable dans la requête pour lire le type (Joueur ou Ennemi)
 const characterQuery = defineQuery([Character, Position, Collider, Renderable]);
 
 export function createMovementSystem(worldWidth, worldHeight) {
