@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARPG Web ECS - Data Driven UI</title>
+    <script src="https://pixijs.download/release/pixi.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app-container">
+
+        <div class="side-panel" id="left-panel">
+            <h2 class="panel-title">Héros</h2>
+
+            <div class="top-profile">
+                <div class="profile-avatar"></div>
+                <div class="profile-stats">
+                    <div class="profile-name">
+                        <span style="color:#e0e0e0;">Paladin</span>
+                        <span style="color:#d4af37;">Lv.<span id="ui-lvl">1</span></span>
+                    </div>
+                    <div class="tiny-bar border-gold">
+                        <div id="ui-xp-bar" class="tiny-fill bg-gold" style="width: 0%;"></div>
+                        <span id="ui-xp-text" class="tiny-text">0/1000</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-table">
+                <div>Force:</div> <div id="ui-str" class="stat-val">25</div>
+                <div>Dextérité:</div> <div id="ui-dex" class="stat-val">15</div>
+                <div>Vitalité:</div> <div id="ui-vit" class="stat-val">20</div>
+                <div>Énergie:</div> <div id="ui-ene" class="stat-val">10</div>
+            </div>
+
+            <div class="separator-line"></div>
+
+            <h3 class="sub-title">Combat</h3>
+            <div class="extended-stats">
+                <div class="stat-row"><span>Armure:</span> <span id="ui-armor" class="stat-val" style="color:#aaa;">50</span></div>
+                <div class="stat-row"><span>DPS:</span> <span id="ui-dps" class="stat-val" style="color:#ff4a4a;">145</span></div>
+            </div>
+
+            <div class="separator-line"></div>
+
+            <h3 class="sub-title">Résistances</h3>
+            <div class="extended-stats">
+                <div class="stat-row"><span>Feu:</span> <span id="ui-res-fire" style="color:#ff4136;">10%</span></div>
+                <div class="stat-row"><span>Froid:</span> <span id="ui-res-cold" style="color:#39cccc;">5%</span></div>
+                <div class="stat-row"><span>Foudre:</span> <span style="color:#ffdc00;">0%</span></div>
+                <div class="stat-row"><span>Poison:</span> <span id="ui-res-poison" style="color:#2ecc40;">0%</span></div>
+                <div class="stat-row" style="margin-top: 8px;"><span>Dégâts Divins:</span> <span id="ui-res-divine" style="color:#f012be;">0%</span></div>
+                <div class="stat-row"><span>Maléfice:</span> <span id="ui-res-dark" style="color:#b10dc9;">0%</span></div>
+            </div>
+        </div>
+
+        <div id="center-panel">
+            <canvas id="game-canvas"></canvas>
+
+            <div class="bottom-hud">
+                <div class="orb-container">
+                    <div id="ui-hp-bar" class="orb-fill bg-hp" style="height: 100%;"></div>
+                    <div class="orb-glare"></div>
+                    <span id="ui-hp-text" class="orb-text">100</span>
+                </div>
+
+                <div class="action-bar" id="action-bar">
+                </div>
+
+                <div class="orb-container">
+                    <div id="ui-mp-bar" class="orb-fill bg-mp" style="height: 100%;"></div>
+                    <div class="orb-glare"></div>
+                    <span id="ui-mp-text" class="orb-text">100</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="side-panel" id="right-panel">
+            <div class="window-tabs">
+                <button class="tab-btn active">Inventaire</button>
+                <button class="tab-btn">Sorts</button>
+                <button class="tab-btn">Quêtes</button>
+            </div>
+
+            <div class="tab-content">
+                <div class="equipment"></div>
+
+                <div class="inventory-section">
+                    <div class="inventory-grid"></div>
+
+                    <div class="gold-counter">
+                        <span style="color:#d4af37; font-size:22px; font-weight:bold;">Or: 13 609</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script type="module" src="game.js"></script>
+</body>
+</html>
