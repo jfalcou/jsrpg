@@ -312,6 +312,25 @@ async function startGame(saveData) {
             }
         }, 5000);
 
+        // Sauvegarde à la fermeture de l'onglet
+        const handleUnload = () => {
+            const players = playerQuery(world);
+            if (players.length > 0) {
+                const pid = players[0];
+                saveData.health = Health.current[pid];
+                saveData.maxHealth = Health.max[pid];
+                saveData.level = PlayerStats.level[pid];
+                saveData.xp = PlayerStats.xp[pid];
+                saveData.xpToNext = PlayerStats.xpToNext[pid];
+                saveData.attributes.str = Attributes.strength[pid];
+                saveData.attributes.dex = Attributes.dexterity[pid];
+                saveData.attributes.vit = Attributes.vitality[pid];
+                saveData.attributes.ene = Attributes.energy[pid];
+                Storage.save(saveData);
+            }
+        };
+
+        window.addEventListener('beforeunload', handleUnload);
         app.ticker.add((ticker) => {
             const delta = ticker.deltaMS / 1000;
 
@@ -329,6 +348,7 @@ async function startGame(saveData) {
                 if (Health.current[pid] <= 0) {
                     app.ticker.stop();
                     clearInterval(autoSaveInterval);
+                    window.removeEventListener('beforeunload', handleUnload); // Empêche la sauvegarde après la mort
                     document.getElementById('game-over').classList.remove('hidden');
                 }
             }
