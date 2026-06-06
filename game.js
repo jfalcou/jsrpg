@@ -1,5 +1,5 @@
 /**
- * @fileoverview Point d'entrée de l'application (Résolution HD).
+ * @fileoverview Contrôleur Principal : Menus, Persistance et Moteur de Jeu.
  */
 
 import { createWorld, addEntity, addComponent, defineQuery } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
@@ -12,6 +12,144 @@ import { createSpellSystem } from './systems/spells.js';
 import { createRenderSystem } from './systems/render.js';
 import { createUiSystem } from './systems/ui.js';
 import { buildWallHash } from './utils/physics.js';
+import { Storage } from './utils/storage.js';
+// ============================================================================
+// 1. GESTION DES MENUS & ETATS (State Machine & Multi-Saves)
+// ============================================================================
+
+const screenMenu = document.getElementById('screen-main-menu');
+const screenCreation = document.getElementById('screen-char-creation');
+const screenSelect = document.getElementById('screen-char-select');
+const appContainer = document.getElementById('app-container');
+
+const btnContinue = document.getElementById('btn-continue');
+const btnNew = document.getElementById('btn-new');
+const btnBackToMain = document.getElementById('btn-back-to-main');
+
+// BOUTON : Choisir un Héros (Ouvre la liste)
+btnContinue.addEventListener('click', () => {
+    screenMenu.classList.add('hidden');
+    screenSelect.classList.remove('hidden');
+    renderCharacterList();
+});
+
+// BOUTON : Retour au Menu Principal
+btnBackToMain.addEventListener('click', () => {
+    screenSelect.classList.add('hidden');
+    screenMenu.classList.remove('hidden');
+});
+
+// AFFICHER LA LISTE DES PERSONNAGES
+function renderCharacterList() {
+    const listContainer = document.getElementById('char-list');
+    listContainer.innerHTML = '';
+    const saves = Storage.getAllSaves();
+
+    saves.forEach(save => {
+        const card = document.createElement('div');
+        card.className = 'char-card';
+        card.innerHTML = `
+            <div class="char-info">
+                <span class="char-name-display">${save.name}</span>
+                <span class="char-meta">Niveau ${save.level} - ${save.race}</span>
+            </div>
+            <button class="btn-delete-char" data-id="${save.id}">Supprimer</button>
+        `;
+
+        // Événement : Jouer avec ce personnage
+        card.addEventListener('click', (e) => {
+            if(e.target.classList.contains('btn-delete-char')) return; // Ignore le clic si c'est sur supprimer
+            if (save.health <= 0) save.health = save.maxHealth;
+            startGame(save);
+        });
+
+        // Événement : Supprimer le personnage
+        card.querySelector('.btn-delete-char').addEventListener('click', () => {
+            if (confirm(`Êtes-vous sûr de vouloir effacer à jamais ${save.name} ?`)) {
+                Storage.delete(save.id);
+                renderCharacterList(); // Rafraîchit la liste
+
+                // S'il n'y a plus de sauvegarde, on retourne au menu
+                if(!Storage.hasSaves()) {
+                    screenSelect.classList.add('hidden');
+                    screenMenu.classList.remove('hidden');
+                    btnContinue.classList.add('hidden');
+                }
+            }
+        });
+
+        listContainer.appendChild(card);
+    });
+}
+
+// BOUTON : Nouveau Héros
+btnNew.addEventListener('click', () => {
+    screenMenu.classList.add('hidden');
+    screenCreation.classList.remove('hidden');
+    resetCreationUI();
+});
+
+// -- Logique : Allocation des points d'attributs --
+let ptsLeft = 5;
+const baseAttr = { str: 20, dex: 15, vit: 20, ene: 10 };
+let curAttr = { ...baseAttr };
+
+function updateCreationUI() {
+    document.getElementById('pts-left').innerText = ptsLeft;
+    ['str', 'dex', 'vit', 'ene'].forEach(stat => {
+        document.getElementById(`val-${stat}`).innerText = curAttr[stat];
+        document.getElementById(`sub-${stat}`).disabled = (curAttr[stat] === baseAttr[stat]);
+        document.getElementById(`add-${stat}`).disabled = (ptsLeft === 0);
+    });
+}
+
+function resetCreationUI() {
+    ptsLeft = 5;
+    curAttr = { ...baseAttr };
+    document.getElementById('char-name').value = '';
+    updateCreationUI();
+}
+
+['str', 'dex', 'vit', 'ene'].forEach(stat => {
+    document.getElementById(`add-${stat}`).addEventListener('click', () => {
+        if (ptsLeft > 0) { curAttr[stat]++; ptsLeft--; updateCreationUI(); }
+    });
+    document.getElementById(`sub-${stat}`).addEventListener('click', () => {
+        if (curAttr[stat] > baseAttr[stat]) { curAttr[stat]--; ptsLeft++; updateCreationUI(); }
+    });
+});
+
+document.getElementById('btn-cancel').addEventListener('click', () => {
+    screenCreation.classList.add('hidden');
+    screenMenu.classList.remove('hidden');
+});
+
+// BOUTON : Finaliser et Commencer (Création)
+document.getElementById('btn-start').addEventListener('click', () => {
+    const name = document.getElementById('char-name').value || "Héros Anonyme";
+    const race = document.getElementById('char-race').value;
+
+    const newSave = {
+        id: Date.now().toString(), // IDENTIFIANT UNIQUE
+        name,
+        race,
+        level: 1,
+        xp: 0,
+        xpToNext: 1000,
+        attributes: { ...curAttr },
+        health: 100,
+        maxHealth: 100
+    };
+
+    Storage.save(newSave);
+    startGame(newSave);
+});
+
+document.getElementById('restart-btn').addEventListener('click', () => location.reload());
+
+// ============================================================================
+// 2. MOTEUR DE JEU (PixiJS & ECS)
+// ============================================================================
 
 const SCREEN_WIDTH = 1600;
 const SCREEN_HEIGHT = 900;
@@ -19,7 +157,12 @@ const WORLD_WIDTH = 3000;
 const WORLD_HEIGHT = 3000;
 const camera = { x: 0, y: 0 };
 
-async function bootstrap() {
+async function startGame(saveData) {
+    screenMenu.classList.add('hidden');
+    screenCreation.classList.add('hidden');
+    appContainer.classList.remove('hidden');
+    screenSelect.classList.add('hidden');
+
     try {
         const app = new PIXI.Application();
         await app.init({
@@ -76,17 +219,18 @@ async function bootstrap() {
         addComponent(world, PlayerStats, hero);
         addComponent(world, Attributes, hero);
 
-        Health.max[hero] = 100;
-        Health.current[hero] = 100;
+        Health.max[hero] = saveData.maxHealth;
+        Health.current[hero] = saveData.health;
 
-        PlayerStats.level[hero] = 1;
-        PlayerStats.xp[hero] = 0;
-        PlayerStats.xpToNext[hero] = 1000;
+        PlayerStats.level[hero] = saveData.level;
+        PlayerStats.xp[hero] = saveData.xp;
+        PlayerStats.xpToNext[hero] = saveData.xpToNext;
 
-        Attributes.strength[hero] = 25;
-        Attributes.dexterity[hero] = 15;
-        Attributes.vitality[hero] = 20;
-        Attributes.energy[hero] = 10;
+        Attributes.strength[hero] = saveData.attributes.str;
+        Attributes.dexterity[hero] = saveData.attributes.dex;
+        Attributes.vitality[hero] = saveData.attributes.vit;
+        Attributes.energy[hero] = saveData.attributes.ene;
+
         Attributes.armor[hero] = 50;
         Attributes.fireRes[hero] = 10;
         Attributes.coldRes[hero] = 5;
@@ -147,18 +291,25 @@ async function bootstrap() {
         const combatSystem = createCombatSystem();
         const spellSystem = createSpellSystem();
         const renderSystem = createRenderSystem(app, worldContainer, camera, SCREEN_WIDTH, SCREEN_HEIGHT);
-        const uiSystem = createUiSystem();
 
-        // Écran Game Over
-        const gameOverScreen = document.createElement('div');
-        gameOverScreen.id = 'game-over';
-        gameOverScreen.innerHTML = `
-            <h1>GAME OVER</h1>
-            <button id="restart-btn">Recommencer</button>
-        `;
-        gameOverScreen.style.display = 'none';
-        document.getElementById('center-panel').appendChild(gameOverScreen);
-        document.getElementById('restart-btn').addEventListener('click', () => location.reload());
+        const uiSystem = createUiSystem(saveData);
+
+        const autoSaveInterval = setInterval(() => {
+            const players = playerQuery(world);
+            if(players.length > 0) {
+                const pid = players[0];
+                saveData.health = Health.current[pid];
+                saveData.maxHealth = Health.max[pid];
+                saveData.level = PlayerStats.level[pid];
+                saveData.xp = PlayerStats.xp[pid];
+                saveData.xpToNext = PlayerStats.xpToNext[pid];
+                saveData.attributes.str = Attributes.strength[pid];
+                saveData.attributes.dex = Attributes.dexterity[pid];
+                saveData.attributes.vit = Attributes.vitality[pid];
+                saveData.attributes.ene = Attributes.energy[pid];
+                Storage.save(saveData);
+            }
+        }, 5000);
 
         app.ticker.add((ticker) => {
             const delta = ticker.deltaMS / 1000;
@@ -166,18 +317,18 @@ async function bootstrap() {
             inputSystem(world, delta);
             aiSystem(world, delta);
             movementSystem(world, delta);
-            spellSystem(world, delta);   // après movement, avant combat
+            spellSystem(world, delta);
             combatSystem(world, delta);
             renderSystem(world, delta);
             uiSystem(world);
 
-            // Game over check
             const players = playerQuery(world);
             if (players.length > 0) {
                 const pid = players[0];
                 if (Health.current[pid] <= 0) {
                     app.ticker.stop();
-                    document.getElementById('game-over').style.display = 'flex';
+                    clearInterval(autoSaveInterval);
+                    document.getElementById('game-over').classList.remove('hidden');
                 }
             }
         });
@@ -187,5 +338,3 @@ async function bootstrap() {
         document.body.innerHTML += `<div style="color:red; background:white; position:absolute; z-index:100;"><b>Erreur:</b> ${error.message}</div>`;
     }
 }
-
-bootstrap();

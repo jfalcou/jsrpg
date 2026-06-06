@@ -23,10 +23,20 @@ const UI_CONFIG = {
     ]
 };
 
-// PlayerCooldowns retiré — les cooldowns sont dans equippedSpells
 const playerQuery = defineQuery([Player, Health, PlayerStats, Attributes]);
 
-export function createUiSystem() {
+// CORRECTION : saveData est bien déclaré ici
+export function createUiSystem(saveData) {
+
+    // Injection du Nom et de la Race
+    const nameTitle = document.getElementById('ui-char-name-title');
+    const raceText = document.getElementById('ui-char-race');
+
+    if (saveData) {
+        if (nameTitle) nameTitle.innerText = saveData.name;
+        if (raceText) raceText.innerText = saveData.race;
+    }
+
     // --- 1. GÉNÉRATION DYNAMIQUE DU DOM ---
     const equipContainer = document.querySelector('.equipment');
     equipContainer.style.gridTemplateColumns = `repeat(${UI_CONFIG.equipGrid.width}, var(--grid-cell))`;
@@ -74,20 +84,18 @@ export function createUiSystem() {
 
     // --- 3. GÉNÉRATION DYNAMIQUE DE LA BARRE D'ACTION ---
     const actionBar = document.getElementById('action-bar');
-    const cooldownOverlays = new Map(); // spell.id -> { overlay, text }
+    const cooldownOverlays = new Map();
 
     for (const entry of equippedSpells) {
         const slot = document.createElement('div');
         slot.className = 'skill-slot';
 
-        // Icône
         const icon = document.createElement('div');
         icon.className = 'skill-icon';
         icon.style.cssText = 'display:flex; align-items:center; justify-content:center; font-size:28px;';
         icon.innerText = entry.spell.iconEmoji || '?';
         slot.appendChild(icon);
 
-        // Overlay cooldown
         const overlay = document.createElement('div');
         overlay.className = 'skill-cooldown hidden';
         overlay.id = `${entry.spell.id}-cd-overlay`;
@@ -97,14 +105,12 @@ export function createUiSystem() {
         overlay.appendChild(cdText);
         slot.appendChild(overlay);
 
-        // Touche
         const key = document.createElement('div');
         key.className = 'skill-key';
         key.innerText = entry.displayKey || entry.key.replace('Key', '');
         slot.appendChild(key);
 
         actionBar.appendChild(slot);
-
         cooldownOverlays.set(entry.spell.id, { overlay, text: cdText });
     }
 
@@ -115,7 +121,6 @@ export function createUiSystem() {
         if (players.length > 0) {
             const pid = players[0];
 
-            // HP
             const hp = Health.current[pid];
             const maxHp = Health.max[pid];
             if (hp !== lastHp || maxHp !== lastMaxHp) {
@@ -125,7 +130,6 @@ export function createUiSystem() {
                 lastHp = hp; lastMaxHp = maxHp;
             }
 
-            // XP
             const xp = PlayerStats.xp[pid];
             const nextXp = PlayerStats.xpToNext[pid];
             const level = PlayerStats.level[pid];
@@ -137,21 +141,18 @@ export function createUiSystem() {
                 lastXp = xp; lastLevel = level;
             }
 
-            // Attributs
             if (strText) strText.innerText = Math.floor(Attributes.strength[pid]);
             if (dexText) dexText.innerText = Math.floor(Attributes.dexterity[pid]);
             if (vitText) vitText.innerText = Math.floor(Attributes.vitality[pid]);
             if (eneText) eneText.innerText = Math.floor(Attributes.energy[pid]);
             if (armorText) armorText.innerText = Math.floor(Attributes.armor[pid]);
 
-            // Résistances
             if (fireResText) fireResText.innerText = `${Math.floor(Attributes.fireRes[pid])}%`;
             if (coldResText) coldResText.innerText = `${Math.floor(Attributes.coldRes[pid])}%`;
             if (poisonResText) poisonResText.innerText = `${Math.floor(Attributes.poisonRes[pid])}%`;
             if (divineResText) divineResText.innerText = `${Math.floor(Attributes.divineRes[pid])}%`;
             if (darkResText) darkResText.innerText = `${Math.floor(Attributes.darkRes[pid])}%`;
 
-            // Cooldowns des sorts — générique pour tous les sorts équipés
             for (const entry of equippedSpells) {
                 const els = cooldownOverlays.get(entry.spell.id);
                 if (!els) continue;
