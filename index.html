@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JS-RPG - L'Aventure Commence</title>
+    <title>JS-RPG - The Adventure Begins</title>
     <link rel="icon" href="data:,">
     <script src="https://pixijs.download/release/pixi.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Cinzel+Decorative:wght@700&family=Uncial+Antiqua&display=swap" rel="stylesheet">
@@ -12,10 +12,10 @@
 <body>
 
     <div id="screen-main-menu" class="fullscreen-menu">
-        <h1 class="game-title">DIABOLICAL WEB</h1>
+        <h1 class="game-title">Champions Of Fate</h1>
         <div class="menu-buttons">
-            <button id="btn-continue" class="menu-btn hidden">Choisir un Héros</button>
-            <button id="btn-new" class="menu-btn">Nouveau Héros</button>
+            <button id="btn-continue" class="menu-btn hidden">Select A Champion</button>
+            <button id="btn-new" class="menu-btn">New Champion</button>
         </div>
 
         <script>
@@ -28,54 +28,54 @@
 
     <div id="screen-char-select" class="fullscreen-menu hidden">
         <div class="creation-panel" style="width: 500px;">
-            <h2>Vos Héros</h2>
+            <h2>Your Champions</h2>
             <div id="char-list" class="char-list">
                 </div>
             <div class="menu-buttons" style="margin-top: 20px;">
-                <button id="btn-back-to-main" class="menu-btn small">Retour</button>
+                <button id="btn-back-to-main" class="menu-btn small">Back</button>
             </div>
         </div>
     </div>
 
     <div id="screen-char-creation" class="fullscreen-menu hidden">
         <div class="creation-panel">
-            <h2>Forgez votre Destinée</h2>
+            <h2>Forge your Destiny</h2>
 
             <div class="form-group">
-                <input type="text" id="char-name" placeholder="Nom du Héros" maxlength="15" autocomplete="off" />
+                <input type="text" id="char-name" placeholder="Champion Name" maxlength="15" autocomplete="off" />
             </div>
 
             <div class="form-group">
                 <select id="char-race">
-                    <option value="Humain">Race : Humain</option>
-                    <option value="Elfe">Race : Elfe</option>
-                    <option value="Nain">Race : Nain</option>
+                    <option value="Humain">Race : Human</option>
+                    <option value="Elfe">Race : Elf</option>
+                    <option value="Nain">Race : Dwarf</option>
                 </select>
             </div>
 
             <div class="attr-allocator">
-                <p class="alloc-title">Points d'Attributs : <span id="pts-left" style="color: #d4af37;">5</span></p>
+                <p class="alloc-title">Attributes Points : <span id="pts-left" style="color: #d4af37;">5</span></p>
                 <div class="attr-row">
-                    <span>Force</span>
+                    <span>Strength</span>
                     <div><button class="attr-btn" id="sub-str">-</button> <span id="val-str" class="attr-val">20</span> <button class="attr-btn" id="add-str">+</button></div>
                 </div>
                 <div class="attr-row">
-                    <span>Dextérité</span>
+                    <span>Dexterity</span>
                     <div><button class="attr-btn" id="sub-dex">-</button> <span id="val-dex" class="attr-val">15</span> <button class="attr-btn" id="add-dex">+</button></div>
                 </div>
                 <div class="attr-row">
-                    <span>Vitalité</span>
+                    <span>Constitution</span>
                     <div><button class="attr-btn" id="sub-vit">-</button> <span id="val-vit" class="attr-val">20</span> <button class="attr-btn" id="add-vit">+</button></div>
                 </div>
                 <div class="attr-row">
-                    <span>Énergie</span>
+                    <span>Willpower</span>
                     <div><button class="attr-btn" id="sub-ene">-</button> <span id="val-ene" class="attr-val">10</span> <button class="attr-btn" id="add-ene">+</button></div>
                 </div>
             </div>
 
             <div class="menu-buttons">
-                <button id="btn-start" class="menu-btn">Commencer</button>
-                <button id="btn-cancel" class="menu-btn small">Annuler</button>
+                <button id="btn-start" class="menu-btn">Start</button>
+                <button id="btn-cancel" class="menu-btn small">Cancel</button>
             </div>
         </div>
     </div>
@@ -83,7 +83,7 @@
     <div id="app-container" class="hidden">
 
         <div class="side-panel" id="left-panel">
-            <h2 class="panel-title" id="ui-char-name-title">Inconnu</h2>
+            <h2 class="panel-title" id="ui-char-name-title">Unknown</h2>
 
             <div class="top-profile">
                 <div class="profile-avatar"></div>
@@ -100,30 +100,30 @@
             </div>
 
             <div class="stats-table">
-                <div>Force:</div> <div id="ui-str" class="stat-val">25</div>
-                <div>Dextérité:</div> <div id="ui-dex" class="stat-val">15</div>
-                <div>Vitalité:</div> <div id="ui-vit" class="stat-val">20</div>
-                <div>Énergie:</div> <div id="ui-ene" class="stat-val">10</div>
+                <div>Strength:</div> <div id="ui-str" class="stat-val">25</div>
+                <div>Dexterity:</div> <div id="ui-dex" class="stat-val">15</div>
+                <div>Constitution:</div> <div id="ui-vit" class="stat-val">20</div>
+                <div>Willpower:</div> <div id="ui-ene" class="stat-val">10</div>
             </div>
 
             <div class="separator-line"></div>
 
             <h3 class="sub-title">Combat</h3>
             <div class="extended-stats">
-                <div class="stat-row"><span>Armure:</span> <span id="ui-armor" class="stat-val" style="color:#aaa;">50</span></div>
+                <div class="stat-row"><span>Armor:</span> <span id="ui-armor" class="stat-val" style="color:#aaa;">50</span></div>
                 <div class="stat-row"><span>DPS:</span> <span id="ui-dps" class="stat-val" style="color:#ff4a4a;">145</span></div>
             </div>
 
             <div class="separator-line"></div>
 
-            <h3 class="sub-title">Résistances</h3>
+            <h3 class="sub-title">Resistances</h3>
             <div class="extended-stats">
-                <div class="stat-row"><span>Feu:</span> <span id="ui-res-fire" style="color:#ff4136;">10%</span></div>
-                <div class="stat-row"><span>Froid:</span> <span id="ui-res-cold" style="color:#39cccc;">5%</span></div>
-                <div class="stat-row"><span>Foudre:</span> <span style="color:#ffdc00;">0%</span></div>
+                <div class="stat-row"><span>Fire:</span> <span id="ui-res-fire" style="color:#ff4136;">10%</span></div>
+                <div class="stat-row"><span>Cold:</span> <span id="ui-res-cold" style="color:#39cccc;">5%</span></div>
+                <div class="stat-row"><span>Lightning:</span> <span style="color:#ffdc00;">0%</span></div>
                 <div class="stat-row"><span>Poison:</span> <span id="ui-res-poison" style="color:#2ecc40;">0%</span></div>
-                <div class="stat-row" style="margin-top: 8px;"><span>Dégâts Divins:</span> <span id="ui-res-divine" style="color:#f012be;">0%</span></div>
-                <div class="stat-row"><span>Maléfice:</span> <span id="ui-res-dark" style="color:#b10dc9;">0%</span></div>
+                <div class="stat-row" style="margin-top: 8px;"><span>Holy:</span> <span id="ui-res-divine" style="color:#f012be;">0%</span></div>
+                <div class="stat-row"><span>Unholy:</span> <span id="ui-res-dark" style="color:#b10dc9;">0%</span></div>
             </div>
         </div>
 
@@ -149,9 +149,9 @@
 
         <div class="side-panel" id="right-panel">
             <div class="window-tabs">
-                <button class="tab-btn active">Inventaire</button>
-                <button class="tab-btn">Sorts</button>
-                <button class="tab-btn">Quêtes</button>
+                <button class="tab-btn active">Inventory</button>
+                <button class="tab-btn">Spells</button>
+                <button class="tab-btn">Quests</button>
             </div>
 
             <div class="tab-content">
@@ -171,7 +171,7 @@
 
     <div id="game-over" class="hidden">
         <h1>GAME OVER</h1>
-        <button id="restart-btn">Menu Principal</button>
+        <button id="restart-btn">Main Menu</button>
     </div>
 
     <script type="module" src="game.js"></script>

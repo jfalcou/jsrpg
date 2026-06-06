@@ -13,6 +13,7 @@ import { createRenderSystem } from './systems/render.js';
 import { createUiSystem } from './systems/ui.js';
 import { buildWallHash } from './utils/physics.js';
 import { Storage } from './utils/storage.js';
+
 // ============================================================================
 // 1. GESTION DES MENUS & ETATS (State Machine & Multi-Saves)
 // ============================================================================
@@ -51,9 +52,9 @@ function renderCharacterList() {
         card.innerHTML = `
             <div class="char-info">
                 <span class="char-name-display">${save.name}</span>
-                <span class="char-meta">Niveau ${save.level} - ${save.race}</span>
+                <span class="char-meta">Level ${save.level} - ${save.race}</span>
             </div>
-            <button class="btn-delete-char" data-id="${save.id}">Supprimer</button>
+            <button class="btn-delete-char" data-id="${save.id}">Delete</button>
         `;
 
         // Événement : Jouer avec ce personnage
@@ -65,7 +66,7 @@ function renderCharacterList() {
 
         // Événement : Supprimer le personnage
         card.querySelector('.btn-delete-char').addEventListener('click', () => {
-            if (confirm(`Êtes-vous sûr de vouloir effacer à jamais ${save.name} ?`)) {
+            if (confirm(`Are you sure you want to send ${save.name} to oblivion?`)) {
                 Storage.delete(save.id);
                 renderCharacterList(); // Rafraîchit la liste
 
@@ -126,7 +127,7 @@ document.getElementById('btn-cancel').addEventListener('click', () => {
 
 // BOUTON : Finaliser et Commencer (Création)
 document.getElementById('btn-start').addEventListener('click', () => {
-    const name = document.getElementById('char-name').value || "Héros Anonyme";
+    const name = document.getElementById('char-name').value || "Anonymous Champion";
     const race = document.getElementById('char-race').value;
 
     const newSave = {
