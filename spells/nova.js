@@ -65,7 +65,7 @@ export default {
 
                     // Affiche le total sur 0.2s toutes les 0.2s
                     if (shouldDisplay) {
-                        spawnDamageNumber(ex, Position.y[eid], 40 * 0.2, '#00FFFF', 16);
+                        spawnDamageNumber(ex, Position.y[eid], 40 * 0.2, '#00FFFF', 28);
                     }
 
                     if (!state.hitEnemies.has(eid)) {

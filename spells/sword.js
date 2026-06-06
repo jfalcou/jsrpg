@@ -8,10 +8,10 @@ import { spawnDamageNumber } from '../systems/combat.js';
 
 const enemyQuery = defineQuery([Enemy, Position, Health, Collider]);
 
-const SWORD_RANGE = 80;
+const SWORD_RANGE = 70;
 const SWORD_CONE = Math.PI / 2;
-const SWORD_DAMAGE = 35;
-const KNOCKBACK_FORCE = 300;
+const SWORD_DAMAGE = 25;
+const KNOCKBACK_FORCE = 200;
 
 function isInCone(px, py, facingX, facingY, ex, ey, range, halfAngle) {
     const dx = ex - px;
@@ -26,7 +26,7 @@ export default {
     id: 'sword',
     name: "Coup d'Épée",
     iconEmoji: '⚔️',
-    cooldown: 0.4,
+    cooldown: 0.2,
     type: 'melee',
     fxType: 5, // type Renderable réservé à ce sort
 
@@ -68,7 +68,7 @@ export default {
                     Knockback.x[eid] = (dx / dist) * KNOCKBACK_FORCE;
                     Knockback.y[eid] = (dy / dist) * KNOCKBACK_FORCE;
                 }
-                spawnDamageNumber(ex, Position.y[eid], SWORD_DAMAGE, '#FFD700', 24);
+                spawnDamageNumber(ex, Position.y[eid], SWORD_DAMAGE, '#FFD700', 36);
             }
         }
     },

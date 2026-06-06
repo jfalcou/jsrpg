@@ -334,3 +334,19 @@ body {
     background: #ff4136;
     color: #fff;
 }
+
+/* Ajoute une hauteur fixe pour éviter que la boîte ne danse */
+.char-race-description {
+    min-height: 3em;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    margin-top: 10px;
+
+    transition: opacity 0.4s ease-in-out;
+    opacity: 1;
+}
+
+.char-race-description.fade-out {
+    opacity: 0;
+}

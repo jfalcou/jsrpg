@@ -13,34 +13,31 @@ import { createRenderSystem } from './systems/render.js';
 import { createUiSystem } from './systems/ui.js';
 import { buildWallHash } from './utils/physics.js';
 import { Storage } from './utils/storage.js';
+import { races, getRace } from './races/index.js';
 
 // ============================================================================
-// 1. GESTION DES MENUS & ETATS (State Machine & Multi-Saves)
+// 1. GESTION DES MENUS & ETATS
 // ============================================================================
 
-const screenMenu = document.getElementById('screen-main-menu');
+const screenMenu     = document.getElementById('screen-main-menu');
 const screenCreation = document.getElementById('screen-char-creation');
-const screenSelect = document.getElementById('screen-char-select');
-const appContainer = document.getElementById('app-container');
+const screenSelect   = document.getElementById('screen-char-select');
+const appContainer   = document.getElementById('app-container');
+const btnContinue    = document.getElementById('btn-continue');
+const btnNew         = document.getElementById('btn-new');
+const btnBackToMain  = document.getElementById('btn-back-to-main');
 
-const btnContinue = document.getElementById('btn-continue');
-const btnNew = document.getElementById('btn-new');
-const btnBackToMain = document.getElementById('btn-back-to-main');
-
-// BOUTON : Choisir un Héros (Ouvre la liste)
 btnContinue.addEventListener('click', () => {
     screenMenu.classList.add('hidden');
     screenSelect.classList.remove('hidden');
     renderCharacterList();
 });
 
-// BOUTON : Retour au Menu Principal
 btnBackToMain.addEventListener('click', () => {
     screenSelect.classList.add('hidden');
     screenMenu.classList.remove('hidden');
 });
 
-// AFFICHER LA LISTE DES PERSONNAGES
 function renderCharacterList() {
     const listContainer = document.getElementById('char-list');
     listContainer.innerHTML = '';
@@ -57,21 +54,17 @@ function renderCharacterList() {
             <button class="btn-delete-char" data-id="${save.id}">Delete</button>
         `;
 
-        // Événement : Jouer avec ce personnage
         card.addEventListener('click', (e) => {
-            if(e.target.classList.contains('btn-delete-char')) return; // Ignore le clic si c'est sur supprimer
+            if (e.target.classList.contains('btn-delete-char')) return;
             if (save.health <= 0) save.health = save.maxHealth;
             startGame(save);
         });
 
-        // Événement : Supprimer le personnage
         card.querySelector('.btn-delete-char').addEventListener('click', () => {
             if (confirm(`Are you sure you want to send ${save.name} to oblivion?`)) {
                 Storage.delete(save.id);
-                renderCharacterList(); // Rafraîchit la liste
-
-                // S'il n'y a plus de sauvegarde, on retourne au menu
-                if(!Storage.hasSaves()) {
+                renderCharacterList();
+                if (!Storage.hasSaves()) {
                     screenSelect.classList.add('hidden');
                     screenMenu.classList.remove('hidden');
                     btnContinue.classList.add('hidden');
@@ -83,17 +76,16 @@ function renderCharacterList() {
     });
 }
 
-// BOUTON : Nouveau Héros
 btnNew.addEventListener('click', () => {
     screenMenu.classList.add('hidden');
     screenCreation.classList.remove('hidden');
     resetCreationUI();
 });
 
-// -- Logique : Allocation des points d'attributs --
+// -- Allocation des points d'attributs --
 let ptsLeft = 5;
-const baseAttr = { str: 20, dex: 15, vit: 20, ene: 10 };
-let curAttr = { ...baseAttr };
+let baseAttr = { str: 20, dex: 15, vit: 20, ene: 10 }; // sera écrasé par la race
+let curAttr  = { ...baseAttr };
 
 function updateCreationUI() {
     document.getElementById('pts-left').innerText = ptsLeft;
@@ -105,11 +97,75 @@ function updateCreationUI() {
 }
 
 function resetCreationUI() {
-    ptsLeft = 5;
-    curAttr = { ...baseAttr };
+    // On remplie la liste des races
+    const raceSelect = document.getElementById('char-race');
+    raceSelect.innerHTML = '';
+    const all_races = Object.values(races); // Récupère toutes les  races disponibles
+
+    // Ajoute une option pour chaque race dans le select
+    all_races.forEach(race => {
+        const option = document.createElement('option');
+        option.value = race.id;
+        option.textContent = `${race.name}`;
+        raceSelect.appendChild(option);
+    });
+
+    // On charge la description de la race sélectionnée
+    const raceDescription = document.querySelector('.char-race-description');
+    const initialRace = getRace(raceSelect.value);
+    if (initialRace) {
+        raceDescription.textContent = initialRace.description;
+    }
+
+    // raceSelect.addEventListener('change', () => {
+    //     const selectedRace = getRace(raceSelect.value);
+    //     if (selectedRace) {
+    //         raceDescription.textContent = selectedRace.description;
+    //     }
+    // });
+
+    raceSelect.addEventListener('change', () => {
+    const selectedRace = getRace(raceSelect.value);
+
+    if (selectedRace) {
+        raceDescription.classList.add('fade-out');
+
+        setTimeout(() => {
+            raceDescription.textContent = selectedRace.description;
+            raceDescription.classList.remove('fade-out');
+        }, 400);
+    }
+});
+
+    // On charge les stats de base de la race sélectionnée
+    const raceId   = document.getElementById('char-race').value;
+    const raceData = getRace(raceId);
+    baseAttr = {
+        str: raceData.baseStats.str,
+        dex: raceData.baseStats.dex,
+        vit: raceData.baseStats.vit,
+        ene: raceData.baseStats.ene
+    };
+    ptsLeft  = 5;
+    curAttr  = { ...baseAttr };
     document.getElementById('char-name').value = '';
     updateCreationUI();
 }
+
+// Changement de race — reset les stats de base
+document.getElementById('char-race').addEventListener('change', () => {
+    const raceId   = document.getElementById('char-race').value;
+    const raceData = getRace(raceId);
+    baseAttr = {
+        str: raceData.baseStats.str,
+        dex: raceData.baseStats.dex,
+        vit: raceData.baseStats.vit,
+        ene: raceData.baseStats.ene
+    };
+    ptsLeft = 5;
+    curAttr = { ...baseAttr };
+    updateCreationUI();
+});
 
 ['str', 'dex', 'vit', 'ene'].forEach(stat => {
     document.getElementById(`add-${stat}`).addEventListener('click', () => {
@@ -125,21 +181,24 @@ document.getElementById('btn-cancel').addEventListener('click', () => {
     screenMenu.classList.remove('hidden');
 });
 
-// BOUTON : Finaliser et Commencer (Création)
 document.getElementById('btn-start').addEventListener('click', () => {
-    const name = document.getElementById('char-name').value || "Anonymous Champion";
-    const race = document.getElementById('char-race').value;
+    const name     = document.getElementById('char-name').value || "Anonymous Champion";
+    const raceId   = document.getElementById('char-race').value;
+    const raceData = getRace(raceId);
 
     const newSave = {
-        id: Date.now().toString(), // IDENTIFIANT UNIQUE
+        id: Date.now().toString(),
         name,
-        race,
+        race: raceData.name,
+        raceId: raceData.id,
         level: 1,
         xp: 0,
         xpToNext: 1000,
         attributes: { ...curAttr },
-        health: 100,
-        maxHealth: 100
+        health: raceData.baseStats.hp,
+        maxHealth: raceData.baseStats.hp,
+        mp: raceData.baseStats.mp,
+        maxMp: raceData.baseStats.mp,
     };
 
     Storage.save(newSave);
@@ -149,20 +208,20 @@ document.getElementById('btn-start').addEventListener('click', () => {
 document.getElementById('restart-btn').addEventListener('click', () => location.reload());
 
 // ============================================================================
-// 2. MOTEUR DE JEU (PixiJS & ECS)
+// 2. MOTEUR DE JEU
 // ============================================================================
 
-const SCREEN_WIDTH = 1600;
+const SCREEN_WIDTH  = 1600;
 const SCREEN_HEIGHT = 900;
-const WORLD_WIDTH = 3000;
-const WORLD_HEIGHT = 3000;
+const WORLD_WIDTH   = 3000;
+const WORLD_HEIGHT  = 3000;
 const camera = { x: 0, y: 0 };
 
 async function startGame(saveData) {
     screenMenu.classList.add('hidden');
     screenCreation.classList.add('hidden');
-    appContainer.classList.remove('hidden');
     screenSelect.classList.add('hidden');
+    appContainer.classList.remove('hidden');
 
     try {
         const app = new PIXI.Application();
@@ -220,36 +279,35 @@ async function startGame(saveData) {
         addComponent(world, PlayerStats, hero);
         addComponent(world, Attributes, hero);
 
-        Health.max[hero] = saveData.maxHealth;
+        Health.max[hero]     = saveData.maxHealth;
         Health.current[hero] = saveData.health;
 
-        PlayerStats.level[hero] = saveData.level;
-        PlayerStats.xp[hero] = saveData.xp;
-        PlayerStats.xpToNext[hero] = saveData.xpToNext;
+        PlayerStats.level[hero]     = saveData.level;
+        PlayerStats.xp[hero]        = saveData.xp;
+        PlayerStats.xpToNext[hero]  = saveData.xpToNext;
 
-        Attributes.strength[hero] = saveData.attributes.str;
-        Attributes.dexterity[hero] = saveData.attributes.dex;
-        Attributes.vitality[hero] = saveData.attributes.vit;
-        Attributes.energy[hero] = saveData.attributes.ene;
+        Attributes.strength[hero]   = saveData.attributes.str;
+        Attributes.dexterity[hero]  = saveData.attributes.dex;
+        Attributes.vitality[hero]   = saveData.attributes.vit;
+        Attributes.energy[hero]     = saveData.attributes.ene;
+        Attributes.armor[hero]      = 50;
+        Attributes.fireRes[hero]    = 10;
+        Attributes.coldRes[hero]    = 5;
+        Attributes.poisonRes[hero]  = 0;
+        Attributes.divineRes[hero]  = 0;
+        Attributes.darkRes[hero]    = 0;
 
-        Attributes.armor[hero] = 50;
-        Attributes.fireRes[hero] = 10;
-        Attributes.coldRes[hero] = 5;
-        Attributes.poisonRes[hero] = 0;
-        Attributes.divineRes[hero] = 0;
-        Attributes.darkRes[hero] = 0;
-
-        Position.x[hero] = WORLD_WIDTH / 2;
-        Position.y[hero] = WORLD_HEIGHT / 2;
-        Facing.x[hero] = 0;
-        Facing.y[hero] = 1;
-        Collider.width[hero] = 32;
+        Position.x[hero]      = WORLD_WIDTH / 2;
+        Position.y[hero]      = WORLD_HEIGHT / 2;
+        Facing.x[hero]        = 0;
+        Facing.y[hero]        = 1;
+        Collider.width[hero]  = 32;
         Collider.height[hero] = 32;
-        Dash.active[hero] = 0;
-        Dash.timer[hero] = 0;
-        Dash.dirX[hero] = 0;
-        Dash.dirY[hero] = 0;
-        Dash.speed[hero] = 0;
+        Dash.active[hero]     = 0;
+        Dash.timer[hero]      = 0;
+        Dash.dirX[hero]       = 0;
+        Dash.dirY[hero]       = 0;
+        Dash.speed[hero]      = 0;
         Renderable.type[hero] = 0;
 
         // --- La Horde ---
@@ -271,66 +329,50 @@ async function startGame(saveData) {
                 ey = Math.random() * (WORLD_HEIGHT - 100) + 50;
             } while (Math.abs(ex - WORLD_WIDTH / 2) < 300 && Math.abs(ey - WORLD_HEIGHT / 2) < 300);
 
-            Position.x[enemy] = ex;
-            Position.y[enemy] = ey;
-            Velocity.x[enemy] = 0;
-            Velocity.y[enemy] = 0;
-            Collider.width[enemy] = 32;
-            Collider.height[enemy] = 32;
-            Renderable.type[enemy] = 1;
-            Health.max[enemy] = 100;
-            Health.current[enemy] = 100;
-            Knockback.x[enemy] = 0;
-            Knockback.y[enemy] = 0;
+            Position.x[enemy]          = ex;
+            Position.y[enemy]          = ey;
+            Velocity.x[enemy]          = 0;
+            Velocity.y[enemy]          = 0;
+            Collider.width[enemy]      = 32;
+            Collider.height[enemy]     = 32;
+            Renderable.type[enemy]     = 1;
+            Health.max[enemy]          = 100;
+            Health.current[enemy]      = 100;
+            Knockback.x[enemy]         = 0;
+            Knockback.y[enemy]         = 0;
             Knockback.elasticity[enemy] = 0.85;
-            HitFlash.timer[enemy] = 0;
+            HitFlash.timer[enemy]      = 0;
         }
 
-        const inputSystem = createInputSystem();
-        const aiSystem = createAiSystem();
+        const inputSystem   = createInputSystem();
+        const aiSystem      = createAiSystem();
         const movementSystem = createMovementSystem(WORLD_WIDTH, WORLD_HEIGHT);
-        const combatSystem = createCombatSystem();
-        const spellSystem = createSpellSystem();
-        const renderSystem = createRenderSystem(app, worldContainer, camera, SCREEN_WIDTH, SCREEN_HEIGHT);
+        const combatSystem  = createCombatSystem();
+        const spellSystem   = createSpellSystem();
+        const renderSystem  = createRenderSystem(app, worldContainer, camera, SCREEN_WIDTH, SCREEN_HEIGHT);
+        const uiSystem      = createUiSystem(saveData);
 
-        const uiSystem = createUiSystem(saveData);
-
-        const autoSaveInterval = setInterval(() => {
-            const players = playerQuery(world);
-            if(players.length > 0) {
-                const pid = players[0];
-                saveData.health = Health.current[pid];
-                saveData.maxHealth = Health.max[pid];
-                saveData.level = PlayerStats.level[pid];
-                saveData.xp = PlayerStats.xp[pid];
-                saveData.xpToNext = PlayerStats.xpToNext[pid];
-                saveData.attributes.str = Attributes.strength[pid];
-                saveData.attributes.dex = Attributes.dexterity[pid];
-                saveData.attributes.vit = Attributes.vitality[pid];
-                saveData.attributes.ene = Attributes.energy[pid];
-                Storage.save(saveData);
-            }
-        }, 5000);
-
-        // Sauvegarde à la fermeture de l'onglet
-        const handleUnload = () => {
+        // Fonction de sauvegarde réutilisée par l'autosave et le beforeunload
+        function saveProgress() {
             const players = playerQuery(world);
             if (players.length > 0) {
                 const pid = players[0];
-                saveData.health = Health.current[pid];
-                saveData.maxHealth = Health.max[pid];
-                saveData.level = PlayerStats.level[pid];
-                saveData.xp = PlayerStats.xp[pid];
-                saveData.xpToNext = PlayerStats.xpToNext[pid];
+                saveData.health       = Health.current[pid];
+                saveData.maxHealth    = Health.max[pid];
+                saveData.level        = PlayerStats.level[pid];
+                saveData.xp           = PlayerStats.xp[pid];
+                saveData.xpToNext     = PlayerStats.xpToNext[pid];
                 saveData.attributes.str = Attributes.strength[pid];
                 saveData.attributes.dex = Attributes.dexterity[pid];
                 saveData.attributes.vit = Attributes.vitality[pid];
                 saveData.attributes.ene = Attributes.energy[pid];
                 Storage.save(saveData);
             }
-        };
+        }
 
-        window.addEventListener('beforeunload', handleUnload);
+        const autoSaveInterval = setInterval(saveProgress, 5000);
+        window.addEventListener('beforeunload', saveProgress);
+
         app.ticker.add((ticker) => {
             const delta = ticker.deltaMS / 1000;
 
@@ -348,7 +390,7 @@ async function startGame(saveData) {
                 if (Health.current[pid] <= 0) {
                     app.ticker.stop();
                     clearInterval(autoSaveInterval);
-                    window.removeEventListener('beforeunload', handleUnload); // Empêche la sauvegarde après la mort
+                    window.removeEventListener('beforeunload', saveProgress);
                     document.getElementById('game-over').classList.remove('hidden');
                 }
             }
