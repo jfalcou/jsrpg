@@ -1,9 +1,11 @@
 /**
- * @fileoverview Le pont entre l'ECS et PixiJS.
+ * @fileoverview Le pont entre l'ECS et PixiJS + chiffres flottants.
  */
 
 import { defineQuery, enterQuery, exitQuery, hasComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Renderable, Player, Facing, Collider, HitFlash, NovaFx } from '../utils/components.js';
+import { Position, Renderable, Player, Facing, Collider, HitFlash } from '../utils/components.js';
+import { fxRenderers } from '../spells/index.js';
+import { damageNumbers } from './combat.js';
 
 const renderQuery = defineQuery([Position, Renderable]);
 const renderQueryEnter = enterQuery(renderQuery);
@@ -14,21 +16,19 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
     const spriteMap = new Map();
     const eyeMap = new Map();
 
-    // Pool par type — on stocke les containers inutilisés
-    const pools = {
-        1: [], // ennemis
-        2: [], // balles
-    };
+    // Pool générique — inclut tous les fxTypes déclarés dans les sorts
+    const pools = { 1: [] };
+    for (const fxType of fxRenderers.keys()) {
+        pools[fxType] = [];
+    }
 
     function createContainer(world, eid, type) {
-        // Si un container est disponible dans le pool, on le réutilise
         if (pools[type] && pools[type].length > 0) {
             const container = pools[type].pop();
             container.visible = true;
             return container;
         }
 
-        // Sinon on en crée un nouveau
         const container = new PIXI.Container();
         const body = new PIXI.Graphics();
 
@@ -41,68 +41,69 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
         } else if (type === 1) {
             body.moveTo(16, 0).lineTo(32, 32).lineTo(0, 32).closePath().fill({ color: 0xFFFFFF });
             container.addChild(body);
-        } else if (type === 2) {
-            body.rect(0, 0, 8, 8).fill({ color: 0xFFFFFF });
-            container.addChild(body);
         } else if (type === 3) {
             const w = hasComponent(world, Collider, eid) ? Collider.width[eid] : 32;
             const h = hasComponent(world, Collider, eid) ? Collider.height[eid] : 32;
             body.rect(0, 0, w, h).fill({ color: 0xFFFFFF });
             container.addChild(body);
-        } else if (type === 4) {
+        } else {
+            // Tous les FX de sorts (type 4, 5, etc.) — body vide, dessin dynamique
             container.addChild(body);
         }
 
         if (type === 0) body.tint = 0x0074D9;
         else if (type === 1) body.tint = 0xFF4136;
-        else if (type === 2) body.tint = 0xFFDC00;
         else if (type === 3) body.tint = 0x555555;
 
         return container;
     }
 
     function releaseContainer(container, type) {
-        // Si le type est poolable, on cache et on stocke
         if (pools[type]) {
             container.visible = false;
-            // Reset du tint au cas où HitFlash l'aurait modifié
             const body = container.getChildAt(0);
             if (body) {
                 if (type === 1) body.tint = 0xFF4136;
-                else if (type === 2) body.tint = 0xFFDC00;
+                else if (fxRenderers.has(type)) body.clear();
             }
             pools[type].push(container);
         } else {
-            // Types non poolables : on détruit vraiment
             worldContainer.removeChild(container);
             container.destroy({ children: true });
         }
     }
 
+    // Canvas 2D superposé pour les chiffres flottants
+    const dmgCanvas = document.createElement('canvas');
+    dmgCanvas.width = screenWidth;
+    dmgCanvas.height = screenHeight;
+    dmgCanvas.style.cssText = `
+        position: absolute; top: 0; left: 0;
+        width: 100%; height: 100%;
+        pointer-events: none; z-index: 5;
+    `;
+    document.getElementById('center-panel').appendChild(dmgCanvas);
+    const dmgCtx = dmgCanvas.getContext('2d');
+
     return function renderSystem(world, delta) {
 
-        // ENTRÉES — spawn d'entités
+        // ENTRÉES
         const entered = renderQueryEnter(world);
         for (let i = 0; i < entered.length; i++) {
             const eid = entered[i];
             const type = Renderable.type[eid];
-
             const container = createContainer(world, eid, type);
-
-            // Pour l'oeil du joueur
             if (type === 0) eyeMap.set(eid, container.getChildAt(1));
-
             worldContainer.addChild(container);
             spriteMap.set(eid, container);
         }
 
-        // SORTIES — mort d'entités
+        // SORTIES
         const exited = renderQueryExit(world);
         for (let i = 0; i < exited.length; i++) {
             const eid = exited[i];
             const container = spriteMap.get(eid);
             const type = Renderable.type[eid];
-
             if (container) {
                 releaseContainer(container, type);
                 spriteMap.delete(eid);
@@ -120,62 +121,84 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
             worldContainer.y = camera.y;
         }
 
-        // MISE À JOUR DES POSITIONS ET VISUELS
+        // MISE À JOUR POSITIONS ET VISUELS
         const entities = renderQuery(world);
         for (let i = 0; i < entities.length; i++) {
             const eid = entities[i];
             const container = spriteMap.get(eid);
             const type = Renderable.type[eid];
 
-            if (container) {
+            if (!container) continue;
 
-                // CULLING — on skip les ennemis et balles hors écran
-                if (type === 1 || type === 2) {
-                    const sx = Position.x[eid] + camera.x;
-                    const sy = Position.y[eid] + camera.y;
-                    const onScreen = sx > -64 && sx < screenWidth + 64 &&
-                                    sy > -64 && sy < screenHeight + 64;
-
-                    if (!onScreen) {
-                        container.visible = false;
-                        continue;
-                    }
-                    container.visible = true;
-                }
-                container.x = Position.x[eid];
-                container.y = Position.y[eid];
-
-                if (hasComponent(world, Facing, eid)) {
-                    const eye = eyeMap.get(eid);
-                    if (eye) {
-                        eye.x = 12 + Facing.x[eid] * 12;
-                        eye.y = 12 + Facing.y[eid] * 12;
-                    }
-                }
-
-                const body = container.getChildAt(0);
-
-                // Nova — dessin dynamique
-                if (type === 4 && hasComponent(world, NovaFx, eid)) {
-                    body.clear();
-                    const r = Math.max(1, NovaFx.radius[eid]);
-                    const a = Math.max(0, NovaFx.alpha[eid]);
-                    body.circle(0, 0, r)
-                        .fill({ color: 0x00FFFF, alpha: a * 0.2 })
-                        .stroke({ width: 6, color: 0x00FFFF, alpha: a });
+            // Culling ennemis
+            if (type === 1) {
+                const sx = Position.x[eid] + camera.x;
+                const sy = Position.y[eid] + camera.y;
+                const onScreen = sx > -64 && sx < screenWidth + 64 &&
+                                 sy > -64 && sy < screenHeight + 64;
+                if (!onScreen) {
+                    container.visible = false;
                     continue;
                 }
+                container.visible = true;
+            }
 
-                // HitFlash
-                if (hasComponent(world, HitFlash, eid) && HitFlash.timer[eid] > 0) {
-                    body.tint = 0xFFFFFF;
-                } else {
-                    if (type === 0) body.tint = 0x0074D9;
-                    else if (type === 1) body.tint = 0xFF4136;
-                    else if (type === 2) body.tint = 0xFFDC00;
-                    else if (type === 3) body.tint = 0x555555;
+            container.x = Position.x[eid];
+            container.y = Position.y[eid];
+
+            if (hasComponent(world, Facing, eid)) {
+                const eye = eyeMap.get(eid);
+                if (eye) {
+                    eye.x = 12 + Facing.x[eid] * 12;
+                    eye.y = 12 + Facing.y[eid] * 12;
                 }
             }
+
+            const body = container.getChildAt(0);
+
+            // FX des sorts — générique via fxRenderers
+            const spell = fxRenderers.get(type);
+            if (spell?.renderFx) {
+                spell.renderFx(body, eid);
+                continue;
+            }
+
+            // HitFlash
+            if (hasComponent(world, HitFlash, eid) && HitFlash.timer[eid] > 0) {
+                body.tint = 0xFFFFFF;
+            } else {
+                if (type === 0) body.tint = 0x0074D9;
+                else if (type === 1) body.tint = 0xFF4136;
+                else if (type === 3) body.tint = 0x555555;
+            }
+        }
+
+        // CHIFFRES FLOTTANTS
+        dmgCtx.clearRect(0, 0, screenWidth, screenHeight);
+        for (let i = damageNumbers.length - 1; i >= 0; i--) {
+            const dn = damageNumbers[i];
+            dn.timer -= delta;
+            dn.y += dn.vy * delta;
+            dn.alpha = dn.timer / 0.8;
+
+            if (dn.timer <= 0) {
+                damageNumbers.splice(i, 1);
+                continue;
+            }
+
+            const sx = dn.x + camera.x;
+            const sy = dn.y + camera.y;
+
+            dmgCtx.save();
+            dmgCtx.globalAlpha = dn.alpha;
+            dmgCtx.font = `bold ${dn.fontSize}px "Uncial Antiqua", cursive`;
+            dmgCtx.fillStyle = dn.color;
+            dmgCtx.strokeStyle = 'rgba(0,0,0,0.8)';
+            dmgCtx.lineWidth = 3;
+            dmgCtx.textAlign = 'center';
+            dmgCtx.strokeText(dn.damage, sx, sy);
+            dmgCtx.fillText(dn.damage, sx, sy);
+            dmgCtx.restore();
         }
 
         return world;

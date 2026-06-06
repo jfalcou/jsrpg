@@ -1,9 +1,9 @@
 /**
- * @fileoverview Système gérant les entrées clavier (Mouvement, Dash, Tir, Sorts).
+ * @fileoverview Système gérant les entrées clavier (Mouvement, Dash, Sorts).
  */
 
-import { defineQuery, addEntity, addComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Velocity, Player, Renderable, Facing, Collider, Bullet, Dash, Lifetime } from '../utils/components.js';
+import { defineQuery } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
+import { Position, Velocity, Player, Facing, Dash } from '../utils/components.js';
 import { equippedSpells, tickCooldowns } from '../spells/index.js';
 import { castSpell } from './spells.js';
 
@@ -14,15 +14,12 @@ window.addEventListener('keyup', e => keys[e.code] = false);
 const playerQuery = defineQuery([Player, Position, Velocity, Facing, Dash]);
 
 export function createInputSystem() {
-    let lastShotTime = 0;
-    const SHOT_COOLDOWN = 150;
     const SPEED = 240;
-    const BULLET_SPEED = 600;
     const DASH_SPEED = SPEED * 3.5;
     const DASH_DURATION = 0.25;
 
     let canDash = true;
-    const spellKeysDown = new Set(); // Évite le spam en maintenant la touche
+    const spellKeysDown = new Set();
 
     return function inputSystem(world, delta) {
         const entities = playerQuery(world);
@@ -30,7 +27,7 @@ export function createInputSystem() {
         for (let i = 0; i < entities.length; i++) {
             const eid = entities[i];
 
-            // 1. RÉDUCTION DES COOLDOWNS DES SORTS
+            // 1. COOLDOWNS
             tickCooldowns(delta);
 
             // 2. DASH
@@ -81,37 +78,8 @@ export function createInputSystem() {
                 }
             }
 
-            // 3. ATTAQUES
+            // 3. SORTS (épée sur Espace + tous les autres)
             if (Dash.active[eid] === 0) {
-
-                // TIR DE BASE (Espace)
-                if (keys['Space']) {
-                    const now = performance.now();
-                    if (now - lastShotTime > SHOT_COOLDOWN) {
-                        const bullet = addEntity(world);
-                        addComponent(world, Position, bullet);
-                        addComponent(world, Velocity, bullet);
-                        addComponent(world, Renderable, bullet);
-                        addComponent(world, Collider, bullet);
-                        addComponent(world, Bullet, bullet);
-                        addComponent(world, Lifetime, bullet);
-
-                        Position.x[bullet] = Position.x[eid] + 12;
-                        Position.y[bullet] = Position.y[eid] + 12;
-                        Collider.width[bullet] = 8;
-                        Collider.height[bullet] = 8;
-
-                        Velocity.x[bullet] = Facing.x[eid] * BULLET_SPEED;
-                        Velocity.y[bullet] = Facing.y[eid] * BULLET_SPEED;
-
-                        Lifetime.timer[bullet] = 1.0;
-                        Renderable.type[bullet] = 2;
-
-                        lastShotTime = now;
-                    }
-                }
-
-                // SORTS — itère sur tous les sorts équipés
                 for (const entry of equippedSpells) {
                     if (keys[entry.key]) {
                         if (!spellKeysDown.has(entry.key) && entry.cooldownRemaining <= 0) {

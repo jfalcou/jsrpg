@@ -18,9 +18,16 @@ export const PlayerStats = defineComponent({ xp: Types.f32, xpToNext: Types.f32,
 
 export const PlayerCooldowns = defineComponent({ aoe: Types.f32 });
 export const NovaFx = defineComponent({ radius: Types.f32, alpha: Types.f32 });
+
+// Arc visuel du coup d'épée
+export const SwordFx = defineComponent({ angle: Types.f32, range: Types.f32, alpha: Types.f32 });
+
+// Chiffre de dégâts flottant — géré côté HTML (pas Pixi)
+// On stocke les données dans un tableau JS simple, pas dans l'ECS
+// car les chiffres sont purement visuels et éphémères
+
 export const Renderable = defineComponent({ type: Types.ui8 });
 
-// Les Attributs (Feuille de personnage complète)
 export const Attributes = defineComponent({
     strength: Types.f32,
     dexterity: Types.f32,

@@ -4,6 +4,7 @@
  */
 
 import nova from './nova.js';
+import sword from './sword.js';
 
 /**
  * @type {Array<{spell: Object, cooldownRemaining: number, key: string, displayKey: string, slot: number}>}
@@ -16,8 +17,21 @@ import nova from './nova.js';
  * - slot : numéro de slot (0 pour C, 1 pour V, etc.)
  */
 export const equippedSpells = [
+    { spell: sword, cooldownRemaining: 0, key: 'Space', displayKey: 'ESP', slot: 0 },
     { spell: nova, cooldownRemaining: 0, key: 'KeyC', displayKey: 'C', slot: 0 },
 ];
+
+
+/**
+ * Mappe les types d'effets visuels (fxType) aux définitions de sorts correspondants.
+ * Utile pour le système de rendu qui doit savoir comment dessiner chaque type d'effet.
+ * Seule les sorts avec un fxType défini sont inclus ici.
+ */
+export const fxRenderers = new Map(
+    equippedSpells
+        .filter(e => e.spell.fxType !== undefined)
+        .map(e => [e.spell.fxType, e.spell])
+);
 
 /**
  * Récupère un sort équipé par sa touche.
