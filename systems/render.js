@@ -3,7 +3,7 @@
  */
 
 import { defineQuery, enterQuery, exitQuery, hasComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Renderable, Player, Facing, Collider, HitFlash } from '../utils/components.js';
+import { Position, Renderable, Player, Facing, Collider, HitFlash, droppedItems } from '../utils/components.js';
 import { fxRenderers } from '../spells/index.js';
 import { enemyRenderers } from '../enemies/index.js';
 import { damageNumbers } from './combat.js';
@@ -17,14 +17,10 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
     const spriteMap = new Map();
     const eyeMap = new Map();
 
-    // Pool générique — inclut les types de base et les registres dynamiques
-    const pools = { 0: [], 3: [] }; // 0 = Joueur, 3 = Mur
-    for (const fxType of fxRenderers.keys()) {
-        pools[fxType] = [];
-    }
-    for (const enType of enemyRenderers.keys()) {
-        pools[enType] = [];
-    }
+    // Pool générique : 0 = Joueur, 3 = Mur, 5 = Loot
+    const pools = { 0: [], 3: [], 5: [] };
+    for (const fxType of fxRenderers.keys()) pools[fxType] = [];
+    for (const enType of enemyRenderers.keys()) pools[enType] = [];
 
     function createContainer(world, eid, type) {
         if (pools[type] && pools[type].length > 0) {
@@ -48,14 +44,14 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
             const h = hasComponent(world, Collider, eid) ? Collider.height[eid] : 32;
             body.rect(0, 0, w, h).fill({ color: 0xFFFFFF });
             body.tint = 0x555555;
+        } else if (type === 5) {
+            // Conteneur pour le Loot
+            body.rect(0, 0, 16, 16).fill({ color: 0xFFFFFF });
         } else if (enemyRenderers.has(type)) {
-            // Délégation du dessin initial au fichier de configuration de l'ennemi
             const enemyDef = enemyRenderers.get(type);
             if (enemyDef.visuals && enemyDef.visuals.setupVisual) {
                 enemyDef.visuals.setupVisual(body);
             }
-        } else {
-            // Tous les FX de sorts — le body reste vide et est redessiné à chaque frame dans renderFx
         }
 
         return container;
@@ -67,9 +63,7 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
             const body = container.getChildAt(0);
             if (body) {
                 body.tint = 0xFFFFFF;
-                if (fxRenderers.has(type)) {
-                    body.clear();
-                }
+                if (fxRenderers.has(type)) body.clear();
             }
             pools[type].push(container);
         } else {
@@ -78,7 +72,6 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
         }
     }
 
-    // Canvas 2D superposé pour les chiffres flottants
     const dmgCanvas = document.createElement('canvas');
     dmgCanvas.width = screenWidth;
     dmgCanvas.height = screenHeight;
@@ -92,7 +85,6 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
 
     return function renderSystem(world, delta) {
 
-        // ENTRÉES
         const entered = renderQueryEnter(world);
         for (let i = 0; i < entered.length; i++) {
             const eid = entered[i];
@@ -103,7 +95,6 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
             spriteMap.set(eid, container);
         }
 
-        // SORTIES
         const exited = renderQueryExit(world);
         for (let i = 0; i < exited.length; i++) {
             const eid = exited[i];
@@ -116,7 +107,6 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
             }
         }
 
-        // CAMÉRA
         const players = playerQuery(world);
         if (players.length > 0) {
             const pid = players[0];
@@ -126,7 +116,6 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
             worldContainer.y = camera.y;
         }
 
-        // MISE À JOUR POSITIONS ET VISUELS
         const entities = renderQuery(world);
         for (let i = 0; i < entities.length; i++) {
             const eid = entities[i];
@@ -135,8 +124,7 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
 
             if (!container) continue;
 
-            // Frustum Culling : S'applique uniquement aux ennemis enregistrés dynamiquement
-            if (enemyRenderers.has(type)) {
+            if (enemyRenderers.has(type) || type === 5) {
                 const sx = Position.x[eid] + camera.x;
                 const sy = Position.y[eid] + camera.y;
                 const onScreen = sx > -64 && sx < screenWidth + 64 &&
@@ -161,28 +149,28 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
 
             const body = container.getChildAt(0);
 
-            // FX des sorts — rendu dynamique via le dictionnaire de sorts
             const spell = fxRenderers.get(type);
             if (spell?.renderFx) {
                 spell.renderFx(body, eid);
                 continue;
             }
 
-            // HitFlash & Teintes globales
+            // COLORATION DU LOOT
+            if (type === 5) {
+                const itemData = droppedItems.get(eid);
+                if (itemData) body.tint = itemData.color.replace('#', '0x');
+                continue; // Pas de HitFlash sur le loot
+            }
+
             if (hasComponent(world, HitFlash, eid) && HitFlash.timer[eid] > 0) {
-                body.tint = 0xFFFFFF; // Flash blanc à l'impact
+                body.tint = 0xFFFFFF;
             } else {
-                if (type === 0) {
-                    body.tint = 0x0074D9;
-                } else if (type === 3) {
-                    body.tint = 0x555555;
-                } else {
-                    body.tint = 0xFFFFFF; // Rétablissement visuel des ennemis modulaires
-                }
+                if (type === 0) body.tint = 0x0074D9;
+                else if (type === 3) body.tint = 0x555555;
+                else body.tint = 0xFFFFFF;
             }
         }
 
-        // CHIFFRES FLOTTANTS
         dmgCtx.clearRect(0, 0, screenWidth, screenHeight);
         for (let i = damageNumbers.length - 1; i >= 0; i--) {
             const dn = damageNumbers[i];

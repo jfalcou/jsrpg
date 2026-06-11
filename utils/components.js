@@ -77,3 +77,6 @@ export const Enemy = defineComponent();
 export const Bullet = defineComponent();
 export const Wall = defineComponent();
 export const Character = defineComponent();
+
+export const Loot = defineComponent();
+export const droppedItems = new Map();

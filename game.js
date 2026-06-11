@@ -11,6 +11,7 @@ import { createCombatSystem } from './systems/combat.js';
 import { createSpellSystem } from './systems/spells.js';
 import { createRenderSystem } from './systems/render.js';
 import { createUiSystem } from './systems/ui.js';
+import { createLootSystem } from './systems/loot.js'; // NOUVEAU
 import { buildWallHash } from './utils/physics.js';
 import { Storage } from './utils/storage.js';
 import { races, getRace } from './races/index.js';
@@ -83,9 +84,8 @@ btnNew.addEventListener('click', () => {
     resetCreationUI();
 });
 
-// -- Allocation des points d'attributs --
 let ptsLeft = 5;
-let baseAttr = { str: 20, dex: 15, vit: 20, ene: 10 }; // sera écrasé par la race
+let baseAttr = { str: 20, dex: 15, vit: 20, ene: 10 };
 let curAttr  = { ...baseAttr };
 
 function updateCreationUI() {
@@ -98,12 +98,10 @@ function updateCreationUI() {
 }
 
 function resetCreationUI() {
-    // On remplie la liste des races
     const raceSelect = document.getElementById('char-race');
     raceSelect.innerHTML = '';
-    const all_races = Object.values(races); // Récupère toutes les  races disponibles
+    const all_races = Object.values(races);
 
-    // Ajoute une option pour chaque race dans le select
     all_races.forEach(race => {
         const option = document.createElement('option');
         option.value = race.id;
@@ -111,7 +109,6 @@ function resetCreationUI() {
         raceSelect.appendChild(option);
     });
 
-    // On charge la description de la race sélectionnée
     const raceDescription = document.querySelector('.char-race-description');
     const initialRace = getRace(raceSelect.value);
     if (initialRace) {
@@ -123,7 +120,6 @@ function resetCreationUI() {
 
         if (selectedRace) {
             raceDescription.classList.add('fade-out');
-
             setTimeout(() => {
                 raceDescription.textContent = selectedRace.description;
                 raceDescription.classList.remove('fade-out');
@@ -131,7 +127,6 @@ function resetCreationUI() {
         }
     });
 
-    // On charge les stats de base de la race sélectionnée
     const raceId   = document.getElementById('char-race').value;
     const raceData = getRace(raceId);
     baseAttr = {
@@ -146,7 +141,6 @@ function resetCreationUI() {
     updateCreationUI();
 }
 
-// Changement de race — reset les stats de base
 document.getElementById('char-race').addEventListener('change', () => {
     const raceId   = document.getElementById('char-race').value;
     const raceData = getRace(raceId);
@@ -272,7 +266,6 @@ async function startGame(saveData) {
         addComponent(world, Health, hero);
         addComponent(world, PlayerStats, hero);
 
-        // Séparation de la base et des stats affectées par l'équipement
         addComponent(world, BaseAttributes, hero);
         addComponent(world, Attributes, hero);
 
@@ -283,32 +276,30 @@ async function startGame(saveData) {
         PlayerStats.xp[hero]        = saveData.xp;
         PlayerStats.xpToNext[hero]  = saveData.xpToNext;
 
-        // Remplissage de l'ADN statique
         BaseAttributes.strength[hero]   = saveData.attributes.str;
         BaseAttributes.dexterity[hero]  = saveData.attributes.dex;
         BaseAttributes.vitality[hero]   = saveData.attributes.vit;
         BaseAttributes.energy[hero]     = saveData.attributes.ene;
         BaseAttributes.armor[hero]      = 50;
+        BaseAttributes.speed[hero]      = 240;
         BaseAttributes.fireRes[hero]    = 10;
         BaseAttributes.coldRes[hero]    = 5;
         BaseAttributes.poisonRes[hero]  = 0;
         BaseAttributes.divineRes[hero]  = 0;
         BaseAttributes.darkRes[hero]    = 0;
-        BaseAttributes.speed[hero] = 240; // Vitesse de base pure
 
-        // Remplissage de l'état temporaire utilisé en jeu (sera écrasé par le recalculateur d'inventaire)
         Attributes.strength[hero]   = saveData.attributes.str;
         Attributes.dexterity[hero]  = saveData.attributes.dex;
         Attributes.vitality[hero]   = saveData.attributes.vit;
         Attributes.energy[hero]     = saveData.attributes.ene;
         Attributes.armor[hero]      = 50;
+        Attributes.speed[hero]      = 240;
         Attributes.fireRes[hero]    = 10;
         Attributes.coldRes[hero]    = 5;
         Attributes.poisonRes[hero]  = 0;
         Attributes.divineRes[hero]  = 0;
         Attributes.darkRes[hero]    = 0;
         Attributes.bonusDps[hero]   = 0;
-        Attributes.speed[hero]     = 240; // Vitesse dynamique de jeu
 
         Position.x[hero]      = WORLD_WIDTH / 2;
         Position.y[hero]      = WORLD_HEIGHT / 2;
@@ -323,7 +314,7 @@ async function startGame(saveData) {
         Dash.speed[hero]      = 0;
         Renderable.type[hero] = 0;
 
-        // --- La Horde (Désormais dynamique via la Factory) ---
+        // --- La Horde ---
         for (let i = 0; i < 70; i++) {
             let ex, ey;
             do {
@@ -334,15 +325,17 @@ async function startGame(saveData) {
             spawnEnemy(world, 'skeleton', ex, ey);
         }
 
-        const inputSystem   = createInputSystem();
-        const aiSystem      = createAiSystem();
+        const inputSystem    = createInputSystem();
+        const aiSystem       = createAiSystem();
         const movementSystem = createMovementSystem(WORLD_WIDTH, WORLD_HEIGHT);
-        const combatSystem  = createCombatSystem();
-        const spellSystem   = createSpellSystem();
-        const renderSystem  = createRenderSystem(app, worldContainer, camera, SCREEN_WIDTH, SCREEN_HEIGHT);
-        const uiSystem      = createUiSystem(saveData);
+        const combatSystem   = createCombatSystem();
+        const spellSystem    = createSpellSystem();
+        const renderSystem   = createRenderSystem(app, worldContainer, camera, SCREEN_WIDTH, SCREEN_HEIGHT);
+        const uiSystem       = createUiSystem(saveData);
 
-        // Fonction de sauvegarde réutilisée par l'autosave et le beforeunload
+        // NOUVEAU : Initialisation du système de butin
+        const lootSystem     = createLootSystem();
+
         function saveProgress() {
             const players = playerQuery(world);
             if (players.length > 0) {
@@ -353,7 +346,6 @@ async function startGame(saveData) {
                 saveData.xp           = PlayerStats.xp[pid];
                 saveData.xpToNext     = PlayerStats.xpToNext[pid];
 
-                // On sauvegarde EXCLUSIVEMENT la base pure, pas l'équipement
                 saveData.attributes.str = BaseAttributes.strength[pid];
                 saveData.attributes.dex = BaseAttributes.dexterity[pid];
                 saveData.attributes.vit = BaseAttributes.vitality[pid];
@@ -374,6 +366,10 @@ async function startGame(saveData) {
             movementSystem(world, delta);
             spellSystem(world, delta);
             combatSystem(world, delta);
+
+            // NOUVEAU : Appel du système de loot (Pas besoin de delta, ce sont des collisions pures)
+            lootSystem(world);
+
             renderSystem(world, delta);
             uiSystem(world);
 
