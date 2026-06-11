@@ -3,16 +3,14 @@
  */
 
 import { defineQuery, removeEntity, hasComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Collider, Enemy, Wall, Health, HitFlash, Player, PlayerStats } from '../utils/components.js';
-import { SpatialHash } from '../utils/spatial_hash.js';
+import { Position, Collider, Enemy, Wall, Health, HitFlash, Player, PlayerStats, EnemyStats } from '../utils/components.js';
 import { buildWallHash, checkAABB } from '../utils/physics.js';
 
 const enemyQuery = defineQuery([Enemy, Position, Collider, Health]);
 const wallQuery  = defineQuery([Wall, Position, Collider]);
 const playerQuery = defineQuery([Player, PlayerStats, Health]);
 const playerBodyQuery = defineQuery([Player, Position, Collider, Health]);
-
-const enemyHash = new SpatialHash(128);
+const hitFlashQuery = defineQuery([HitFlash]);
 
 // Tableau partagé avec render.js pour les chiffres flottants
 export const damageNumbers = [];
@@ -36,10 +34,15 @@ export function createCombatSystem() {
 
         buildWallHash(world);
 
-        enemyHash.clear();
-        for (let i = 0; i < enemies.length; i++) {
-            const eid = enemies[i];
-            enemyHash.insert(eid, Position.x[eid], Position.y[eid], Collider.width[eid], Collider.height[eid]);
+        // ====================================================================
+        // CORRECTIF : GESTION GLOBALE DES HITFLASH (JOUEUR ET ENNEMIS CORRIGÉS)
+        // ====================================================================
+        const flashEntities = hitFlashQuery(world);
+        for (let i = 0; i < flashEntities.length; i++) {
+            const eid = flashEntities[i];
+            if (HitFlash.timer[eid] > 0) {
+                HitFlash.timer[eid] -= delta;
+            }
         }
 
         // 1. IMPACTS DES ENNEMIS SUR LE JOUEUR
@@ -53,26 +56,31 @@ export function createCombatSystem() {
                     Position.x[pid], Position.y[pid], Collider.width[pid], Collider.height[pid],
                     Position.x[eid], Position.y[eid], Collider.width[eid], Collider.height[eid]
                 )) {
-                    Health.current[pid] -= 10 * delta;
+                    // Lecture dynamique des dégâts depuis le composant EnemyStats
+                    const dps = hasComponent(world, EnemyStats, eid) ? EnemyStats.damage[eid] : 10;
+                    Health.current[pid] -= dps * delta;
                 }
             }
             if (Health.current[pid] < 0) Health.current[pid] = 0;
         }
 
-        // 2. DEATH SWEEP + HITFLASH + XP
+        // 2. DEATH SWEEP + DISTRIBUTION DE L'XP DYNAMIQUE
         for (let j = 0; j < enemies.length; j++) {
             const eid = enemies[j];
 
-            if (hasComponent(world, HitFlash, eid) && HitFlash.timer[eid] > 0) {
-                HitFlash.timer[eid] -= delta;
-            }
-
             if (Health.current[eid] <= 0) {
+
+                // Calcul de l'XP dynamique avant suppression
+                let xpGain = 0;
+                if (hasComponent(world, EnemyStats, eid)) {
+                    xpGain = EnemyStats.xpReward[eid];
+                }
+
                 removeEntity(world, eid);
 
                 if (players.length > 0) {
                     const pid = players[0];
-                    PlayerStats.xp[pid] += 250;
+                    PlayerStats.xp[pid] += xpGain;
 
                     if (PlayerStats.xp[pid] >= PlayerStats.xpToNext[pid]) {
                         PlayerStats.xp[pid] -= PlayerStats.xpToNext[pid];

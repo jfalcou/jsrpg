@@ -3,7 +3,7 @@
  */
 
 import { defineQuery } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Velocity, Player, Facing, Dash } from '../utils/components.js';
+import { Position, Velocity, Player, Facing, Dash, Attributes } from '../utils/components.js';
 import { equippedSpells, tickCooldowns } from '../spells/index.js';
 import { castSpell } from './spells.js';
 
@@ -11,11 +11,10 @@ const keys = {};
 window.addEventListener('keydown', e => keys[e.code] = true);
 window.addEventListener('keyup', e => keys[e.code] = false);
 
-const playerQuery = defineQuery([Player, Position, Velocity, Facing, Dash]);
+// Requête mise à jour pour s'assurer que le joueur possède le composant Attributes
+const playerQuery = defineQuery([Player, Position, Velocity, Facing, Dash, Attributes]);
 
 export function createInputSystem() {
-    const SPEED = 240;
-    const DASH_SPEED = SPEED * 3.5;
     const DASH_DURATION = 0.25;
 
     let canDash = true;
@@ -30,33 +29,43 @@ export function createInputSystem() {
             // 1. COOLDOWNS
             tickCooldowns(delta);
 
+            // ====================================================================
+            // CORRECTIF : LECTURE DYNAMIQUE DE LA VITESSE DEPUIS L'ECS
+            // ====================================================================
+            const SPEED = Attributes.speed[eid] || 240; // Fallback de sécurité à 240px/s
+            const DASH_SPEED = SPEED * 3.5;
+
             // 2. DASH
             if (Dash.active[eid] === 1) {
                 Dash.timer[eid] -= delta;
                 if (Dash.timer[eid] <= 0) Dash.active[eid] = 0;
             }
             const dashPressed = keys['KeyE'] || keys['ControlLeft'];
-            if (!dashPressed) canDash = true;
+            if (!dashPressed) {
+                canDash = true;
+            }
 
-            if (Dash.active[eid] === 1) {
-                Velocity.x[eid] = Dash.dirX[eid] * Dash.speed[eid];
-                Velocity.y[eid] = Dash.dirY[eid] * Dash.speed[eid];
-            } else {
-                let moveX = 0, moveY = 0;
-                if (keys['ArrowUp'] || keys['KeyW']) moveY -= 1;
-                if (keys['ArrowDown'] || keys['KeyS']) moveY += 1;
-                if (keys['ArrowLeft'] || keys['KeyA']) moveX -= 1;
-                if (keys['ArrowRight'] || keys['KeyD']) moveX += 1;
+            if (Dash.active[eid] === 0) {
+                let moveX = 0;
+                let moveY = 0;
+
+                if (keys['KeyW'] || keys['ArrowUp'] || keys['KeyZ']) moveY -= 1;
+                if (keys['KeyS'] || keys['ArrowDown']) moveY += 1;
+                if (keys['KeyA'] || keys['ArrowLeft'] || keys['KeyQ']) moveX -= 1;
+                if (keys['KeyD'] || keys['ArrowRight']) moveX += 1;
+
+                if (moveX !== 0 && moveY !== 0) {
+                    const length = Math.sqrt(moveX * moveX + moveY * moveY);
+                    moveX /= length;
+                    moveY /= length;
+                }
+
+                Velocity.x[eid] = moveX * SPEED;
+                Velocity.y[eid] = moveY * SPEED;
 
                 if (moveX !== 0 || moveY !== 0) {
-                    const dist = Math.sqrt(moveX * moveX + moveY * moveY);
-                    Velocity.x[eid] = (moveX / dist) * SPEED;
-                    Velocity.y[eid] = (moveY / dist) * SPEED;
-                    Facing.x[eid] = moveX / dist;
-                    Facing.y[eid] = moveY / dist;
-                } else {
-                    Velocity.x[eid] = 0;
-                    Velocity.y[eid] = 0;
+                    Facing.x[eid] = moveX;
+                    Facing.y[eid] = moveY;
                 }
 
                 if (dashPressed && canDash) {

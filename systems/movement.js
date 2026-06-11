@@ -4,14 +4,16 @@
 
 import { SpatialHash } from '../utils/spatial_hash.js';
 import { defineQuery, removeEntity, hasComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Velocity, Collider, Wall, Renderable, Knockback, Lifetime, Character } from '../utils/components.js';
-import { buildWallHash, hasWallBetween, checkAABB  } from '../utils/physics.js';
+// On importe désormais les tags Player et Enemy pour la physique
+import { Position, Velocity, Collider, Wall, Knockback, Lifetime, Character, Player, Enemy } from '../utils/components.js';
+import { buildWallHash, checkAABB } from '../utils/physics.js';
 
 const spatialHash = new SpatialHash(64); // cellule de 64px = taille d'un personnage * 2
 const movementQuery = defineQuery([Position, Velocity, Collider]);
 const wallQuery = defineQuery([Wall, Position, Collider]);
 
-const characterQuery = defineQuery([Character, Position, Collider, Renderable]);
+// La requête Character englobe les joueurs et les ennemis (tout ce qui a un corps physique mobile)
+const characterQuery = defineQuery([Character, Position, Collider]);
 
 export function createMovementSystem(worldWidth, worldHeight) {
     return function movementSystem(world, delta) {
@@ -19,138 +21,150 @@ export function createMovementSystem(worldWidth, worldHeight) {
         const walls = wallQuery(world);
         const characters = characterQuery(world);
 
+        // Construction du hash des murs (statique)
+        buildWallHash(world);
+
+        // ====================================================================
         // 1. DÉPLACEMENTS ET COLLISIONS AVEC LES MURS
+        // ====================================================================
         for (let i = 0; i < entities.length; i++) {
             const eid = entities[i];
-            const type = Renderable.type[eid];
 
-            if (type === 2) {
-                if (hasComponent(world, Lifetime, eid)) {
-                    Lifetime.timer[eid] -= delta;
-                    if (Lifetime.timer[eid] <= 0) {
-                        removeEntity(world, eid);
-                        continue;
-                    }
+            // Gestion de la durée de vie (Projectiles, FX)
+            if (hasComponent(world, Lifetime, eid)) {
+                Lifetime.timer[eid] -= delta;
+                if (Lifetime.timer[eid] <= 0) {
+                    removeEntity(world, eid);
+                    continue;
                 }
-                Position.x[eid] += Velocity.x[eid] * delta;
-                Position.y[eid] += Velocity.y[eid] * delta;
-                continue;
             }
 
-            let stepX = Velocity.x[eid];
-            let stepY = Velocity.y[eid];
+            let vx = Velocity.x[eid];
+            let vy = Velocity.y[eid];
 
+            // Application du Knockback
             if (hasComponent(world, Knockback, eid)) {
-                stepX += Knockback.x[eid];
-                stepY += Knockback.y[eid];
+                vx += Knockback.x[eid];
+                vy += Knockback.y[eid];
                 Knockback.x[eid] *= Knockback.elasticity[eid];
                 Knockback.y[eid] *= Knockback.elasticity[eid];
-                if (Math.abs(Knockback.x[eid]) < 0.5) Knockback.x[eid] = 0;
-                if (Math.abs(Knockback.y[eid]) < 0.5) Knockback.y[eid] = 0;
+
+                if (Math.abs(Knockback.x[eid]) < 5) Knockback.x[eid] = 0;
+                if (Math.abs(Knockback.y[eid]) < 5) Knockback.y[eid] = 0;
             }
 
             const w = Collider.width[eid];
             const h = Collider.height[eid];
 
-            Position.x[eid] += stepX * delta;
-            for (let j = 0; j < walls.length; j++) {
-                const wid = walls[j];
-                if (checkAABB(Position.x[eid], Position.y[eid], w, h, Position.x[wid], Position.y[wid], Collider.width[wid], Collider.height[wid])) {
-                    if (stepX > 0) Position.x[eid] = Position.x[wid] - w;
-                    else if (stepX < 0) Position.x[eid] = Position.x[wid] + Collider.width[wid];
-                    break;
+            // Mouvement X
+            if (vx !== 0) {
+                Position.x[eid] += vx * delta;
+
+                // Limites du monde
+                if (Position.x[eid] < 0) Position.x[eid] = 0;
+                if (Position.x[eid] + w > worldWidth) Position.x[eid] = worldWidth - w;
+
+                // Collisions Murs X (Sliding)
+                for (let j = 0; j < walls.length; j++) {
+                    const wid = walls[j];
+                    if (checkAABB(Position.x[eid], Position.y[eid], w, h, Position.x[wid], Position.y[wid], Collider.width[wid], Collider.height[wid])) {
+                        if (vx > 0) Position.x[eid] = Position.x[wid] - w;
+                        else if (vx < 0) Position.x[eid] = Position.x[wid] + Collider.width[wid];
+                    }
                 }
             }
 
-            Position.y[eid] += stepY * delta;
-            for (let j = 0; j < walls.length; j++) {
-                const wid = walls[j];
-                const wy = Position.y[wid];
-                if (checkAABB(Position.x[eid], Position.y[eid], w, h, Position.x[wid], wy, Collider.width[wid], Collider.height[wid])) {
-                    if (stepY > 0) Position.y[eid] = wy - h;
-                    else if (stepY < 0) Position.y[eid] = wy + Collider.height[wid];
-                    break;
+            // Mouvement Y
+            if (vy !== 0) {
+                Position.y[eid] += vy * delta;
+
+                // Limites du monde
+                if (Position.y[eid] < 0) Position.y[eid] = 0;
+                if (Position.y[eid] + h > worldHeight) Position.y[eid] = worldHeight - h;
+
+                // Collisions Murs Y (Sliding)
+                for (let j = 0; j < walls.length; j++) {
+                    const wid = walls[j];
+                    if (checkAABB(Position.x[eid], Position.y[eid], w, h, Position.x[wid], Position.y[wid], Collider.width[wid], Collider.height[wid])) {
+                        if (vy > 0) Position.y[eid] = Position.y[wid] - h;
+                        else if (vy < 0) Position.y[eid] = Position.y[wid] + Collider.height[wid];
+                    }
                 }
             }
-
-            if (Position.x[eid] < 0) Position.x[eid] = 0;
-            if (Position.x[eid] > worldWidth - w) Position.x[eid] = worldWidth - w;
-            if (Position.y[eid] < 0) Position.y[eid] = 0;
-            if (Position.y[eid] > worldHeight - h) Position.y[eid] = worldHeight - h;
         }
 
-        // 2. SÉPARATION DOUCE AVEC SPATIAL HASH
+        // ====================================================================
+        // 2. MISE À JOUR DU HASH SPATIAL DYNAMIQUE
+        // ====================================================================
         spatialHash.clear();
-
-        // On insère tous les personnages dans le hash
         for (let i = 0; i < characters.length; i++) {
             const eid = characters[i];
-            spatialHash.insert(
-                eid,
-                Position.x[eid],
-                Position.y[eid],
-                Collider.width[eid],
-                Collider.height[eid]
-            );
+            spatialHash.insert(eid, Position.x[eid], Position.y[eid], Collider.width[eid], Collider.height[eid]);
         }
 
-        // On ne compare chaque entité qu'avec ses voisins proches
+        // ====================================================================
+        // 3. SÉPARATION D'ESSAIM (Flocking) ET COLLISIONS ENTITÉS
+        // ====================================================================
         for (let i = 0; i < characters.length; i++) {
             const eidA = characters[i];
-            const typeA = Renderable.type[eidA];
-
             const xa = Position.x[eidA];
             const ya = Position.y[eidA];
             const wa = Collider.width[eidA];
             const ha = Collider.height[eidA];
 
-            // Voisins dans les cellules adjacentes uniquement
+            // On vérifie le rôle de l'entité A via ECS
+            const isPlayerA = hasComponent(world, Player, eidA);
+
             const neighbors = spatialHash.query(xa, ya, wa, ha);
-
             for (const eidB of neighbors) {
-                if (eidB <= eidA) continue; // Evite les doublons
+                if (eidA === eidB) continue;
 
-                const typeB = Renderable.type[eidB];
                 const xb = Position.x[eidB];
                 const yb = Position.y[eidB];
                 const wb = Collider.width[eidB];
                 const hb = Collider.height[eidB];
 
-                if (checkAABB(xa, ya, wa, ha, xb, yb, wb, hb)) {
-                    const cxA = xa + wa / 2;
-                    const cyA = ya + ha / 2;
-                    const cxB = xb + wb / 2;
-                    const cyB = yb + hb / 2;
+                // On vérifie le rôle de l'entité B via ECS
+                const isPlayerB = hasComponent(world, Player, eidB);
 
-                    let dx = cxA - cxB;
-                    let dy = cyA - cyB;
-                    let dist = Math.sqrt(dx * dx + dy * dy);
+                const cxA = xa + wa / 2;
+                const cyA = ya + ha / 2;
+                const cxB = xb + wb / 2;
+                const cyB = yb + hb / 2;
 
-                    if (dist === 0) {
-                        dx = Math.random() - 0.5;
-                        dy = Math.random() - 0.5;
-                        dist = Math.sqrt(dx * dx + dy * dy);
-                    }
+                let dx = cxA - cxB;
+                let dy = cyA - cyB;
+                let dist = Math.sqrt(dx * dx + dy * dy);
 
-                    dx /= dist;
-                    dy /= dist;
+                // Empêcher la division par zéro si superposition parfaite
+                if (dist === 0) {
+                    dx = Math.random() - 0.5;
+                    dy = Math.random() - 0.5;
+                    dist = Math.sqrt(dx * dx + dy * dy);
+                }
 
-                    const overlap = (wa / 2 + wb / 2) - dist;
+                dx /= dist;
+                dy /= dist;
 
-                    if (overlap > 0) {
-                        if (typeA === 1 && typeB === 1) {
-                            const push = overlap * 0.5;
-                            Position.x[eidA] += dx * push;
-                            Position.y[eidA] += dy * push;
-                            Position.x[eidB] -= dx * push;
-                            Position.y[eidB] -= dy * push;
-                        } else if (typeA === 0 && typeB === 1) {
-                            Position.x[eidB] -= dx * overlap;
-                            Position.y[eidB] -= dy * overlap;
-                        } else if (typeA === 1 && typeB === 0) {
-                            Position.x[eidA] += dx * overlap;
-                            Position.y[eidA] += dy * overlap;
-                        }
+                const overlap = (wa / 2 + wb / 2) - dist;
+
+                if (overlap > 0) {
+                    // Logique purement Data-Driven (Tags ECS) plutôt que visuelle
+                    if (!isPlayerA && !isPlayerB) {
+                        // Ennemi (A) vs Ennemi (B) -> Ils se repoussent mutuellement
+                        const push = overlap * 0.5;
+                        Position.x[eidA] += dx * push;
+                        Position.y[eidA] += dy * push;
+                        Position.x[eidB] -= dx * push;
+                        Position.y[eidB] -= dy * push;
+                    } else if (isPlayerA && !isPlayerB) {
+                        // Joueur (A) vs Ennemi (B) -> Le joueur reste solide, l'ennemi glisse
+                        Position.x[eidB] -= dx * overlap;
+                        Position.y[eidB] -= dy * overlap;
+                    } else if (!isPlayerA && isPlayerB) {
+                        // Ennemi (A) vs Joueur (B) -> Le joueur reste solide, l'ennemi glisse
+                        Position.x[eidA] += dx * overlap;
+                        Position.y[eidA] += dy * overlap;
                     }
                 }
             }

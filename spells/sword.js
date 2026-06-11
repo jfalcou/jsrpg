@@ -97,7 +97,7 @@ export default {
         body.lineTo(0, 0);
         body.fill({ color: 0xFFFFFF, alpha: a * 0.3 });
         body.arc(0, 0, range, angle - halfCone, angle + halfCone);
-        body.stroke({ width: 3, color: 0xFFFFFF, alpha: a });
+        body.stroke({ width: 3, color: 0xFF0000, alpha: a });
     },
 
     onExpire(world, casterId, state) {}

@@ -28,17 +28,48 @@ export const SwordFx = defineComponent({ angle: Types.f32, range: Types.f32, alp
 
 export const Renderable = defineComponent({ type: Types.ui8 });
 
+// NOUVEAU : Sauvegarde les statistiques pures (Points alloués + Niveau + Race)
+export const BaseAttributes = defineComponent({
+    strength: Types.f32,
+    dexterity: Types.f32,
+    vitality: Types.f32,
+    energy: Types.f32,
+    armor: Types.f32,
+    speed: Types.f32, // CORRECTIF : Intégration de la vitesse de base
+    fireRes: Types.f32,
+    coldRes: Types.f32,
+    poisonRes: Types.f32,
+    divineRes: Types.f32,
+    darkRes: Types.f32
+});
+
+// ÉVOLUTION : Devient le Total dynamique (Base + Équipement + Buffs) lu par les systèmes de combat et d'inputs
 export const Attributes = defineComponent({
     strength: Types.f32,
     dexterity: Types.f32,
     vitality: Types.f32,
     energy: Types.f32,
     armor: Types.f32,
+    speed: Types.f32, // CORRECTIF : Vitesse totale lue par inputSystem
     fireRes: Types.f32,
     coldRes: Types.f32,
     poisonRes: Types.f32,
     divineRes: Types.f32,
-    darkRes: Types.f32
+    darkRes: Types.f32,
+    bonusDps: Types.f32
+});
+
+// Paramètres de tracking pour l'IA
+export const AiTracker = defineComponent({
+    speed: Types.f32,
+    activationRadius: Types.f32,
+    deactivationRadius: Types.f32
+});
+
+// Récompenses et caractéristiques meta de l'ennemi
+export const EnemyStats = defineComponent({
+    xpReward: Types.f32,
+    damage: Types.f32
 });
 
 export const Player = defineComponent();

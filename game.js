@@ -3,7 +3,7 @@
  */
 
 import { createWorld, addEntity, addComponent, defineQuery } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Velocity, Player, Enemy, Renderable, Facing, Collider, Wall, Dash, Health, Knockback, HitFlash, PlayerStats, Character, Attributes } from './utils/components.js';
+import { Position, Velocity, Player, Enemy, Renderable, Facing, Collider, Wall, Dash, Health, Knockback, HitFlash, PlayerStats, Character, Attributes, BaseAttributes } from './utils/components.js';
 import { createInputSystem } from './systems/input.js';
 import { createAiSystem } from './systems/ai.js';
 import { createMovementSystem } from './systems/movement.js';
@@ -14,6 +14,7 @@ import { createUiSystem } from './systems/ui.js';
 import { buildWallHash } from './utils/physics.js';
 import { Storage } from './utils/storage.js';
 import { races, getRace } from './races/index.js';
+import { spawnEnemy } from './enemies/index.js';
 
 // ============================================================================
 // 1. GESTION DES MENUS & ETATS
@@ -117,25 +118,18 @@ function resetCreationUI() {
         raceDescription.textContent = initialRace.description;
     }
 
-    // raceSelect.addEventListener('change', () => {
-    //     const selectedRace = getRace(raceSelect.value);
-    //     if (selectedRace) {
-    //         raceDescription.textContent = selectedRace.description;
-    //     }
-    // });
-
     raceSelect.addEventListener('change', () => {
-    const selectedRace = getRace(raceSelect.value);
+        const selectedRace = getRace(raceSelect.value);
 
-    if (selectedRace) {
-        raceDescription.classList.add('fade-out');
+        if (selectedRace) {
+            raceDescription.classList.add('fade-out');
 
-        setTimeout(() => {
-            raceDescription.textContent = selectedRace.description;
-            raceDescription.classList.remove('fade-out');
-        }, 400);
-    }
-});
+            setTimeout(() => {
+                raceDescription.textContent = selectedRace.description;
+                raceDescription.classList.remove('fade-out');
+            }, 400);
+        }
+    });
 
     // On charge les stats de base de la race sélectionnée
     const raceId   = document.getElementById('char-race').value;
@@ -277,6 +271,9 @@ async function startGame(saveData) {
         addComponent(world, Character, hero);
         addComponent(world, Health, hero);
         addComponent(world, PlayerStats, hero);
+
+        // Séparation de la base et des stats affectées par l'équipement
+        addComponent(world, BaseAttributes, hero);
         addComponent(world, Attributes, hero);
 
         Health.max[hero]     = saveData.maxHealth;
@@ -286,6 +283,20 @@ async function startGame(saveData) {
         PlayerStats.xp[hero]        = saveData.xp;
         PlayerStats.xpToNext[hero]  = saveData.xpToNext;
 
+        // Remplissage de l'ADN statique
+        BaseAttributes.strength[hero]   = saveData.attributes.str;
+        BaseAttributes.dexterity[hero]  = saveData.attributes.dex;
+        BaseAttributes.vitality[hero]   = saveData.attributes.vit;
+        BaseAttributes.energy[hero]     = saveData.attributes.ene;
+        BaseAttributes.armor[hero]      = 50;
+        BaseAttributes.fireRes[hero]    = 10;
+        BaseAttributes.coldRes[hero]    = 5;
+        BaseAttributes.poisonRes[hero]  = 0;
+        BaseAttributes.divineRes[hero]  = 0;
+        BaseAttributes.darkRes[hero]    = 0;
+        BaseAttributes.speed[hero] = 240; // Vitesse de base pure
+
+        // Remplissage de l'état temporaire utilisé en jeu (sera écrasé par le recalculateur d'inventaire)
         Attributes.strength[hero]   = saveData.attributes.str;
         Attributes.dexterity[hero]  = saveData.attributes.dex;
         Attributes.vitality[hero]   = saveData.attributes.vit;
@@ -296,6 +307,8 @@ async function startGame(saveData) {
         Attributes.poisonRes[hero]  = 0;
         Attributes.divineRes[hero]  = 0;
         Attributes.darkRes[hero]    = 0;
+        Attributes.bonusDps[hero]   = 0;
+        Attributes.speed[hero]     = 240; // Vitesse dynamique de jeu
 
         Position.x[hero]      = WORLD_WIDTH / 2;
         Position.y[hero]      = WORLD_HEIGHT / 2;
@@ -310,38 +323,15 @@ async function startGame(saveData) {
         Dash.speed[hero]      = 0;
         Renderable.type[hero] = 0;
 
-        // --- La Horde ---
+        // --- La Horde (Désormais dynamique via la Factory) ---
         for (let i = 0; i < 70; i++) {
-            const enemy = addEntity(world);
-            addComponent(world, Enemy, enemy);
-            addComponent(world, Position, enemy);
-            addComponent(world, Velocity, enemy);
-            addComponent(world, Renderable, enemy);
-            addComponent(world, Collider, enemy);
-            addComponent(world, Health, enemy);
-            addComponent(world, Knockback, enemy);
-            addComponent(world, HitFlash, enemy);
-            addComponent(world, Character, enemy);
-
             let ex, ey;
             do {
                 ex = Math.random() * (WORLD_WIDTH - 100) + 50;
                 ey = Math.random() * (WORLD_HEIGHT - 100) + 50;
             } while (Math.abs(ex - WORLD_WIDTH / 2) < 300 && Math.abs(ey - WORLD_HEIGHT / 2) < 300);
 
-            Position.x[enemy]          = ex;
-            Position.y[enemy]          = ey;
-            Velocity.x[enemy]          = 0;
-            Velocity.y[enemy]          = 0;
-            Collider.width[enemy]      = 32;
-            Collider.height[enemy]     = 32;
-            Renderable.type[enemy]     = 1;
-            Health.max[enemy]          = 100;
-            Health.current[enemy]      = 100;
-            Knockback.x[enemy]         = 0;
-            Knockback.y[enemy]         = 0;
-            Knockback.elasticity[enemy] = 0.85;
-            HitFlash.timer[enemy]      = 0;
+            spawnEnemy(world, 'skeleton', ex, ey);
         }
 
         const inputSystem   = createInputSystem();
@@ -362,10 +352,13 @@ async function startGame(saveData) {
                 saveData.level        = PlayerStats.level[pid];
                 saveData.xp           = PlayerStats.xp[pid];
                 saveData.xpToNext     = PlayerStats.xpToNext[pid];
-                saveData.attributes.str = Attributes.strength[pid];
-                saveData.attributes.dex = Attributes.dexterity[pid];
-                saveData.attributes.vit = Attributes.vitality[pid];
-                saveData.attributes.ene = Attributes.energy[pid];
+
+                // On sauvegarde EXCLUSIVEMENT la base pure, pas l'équipement
+                saveData.attributes.str = BaseAttributes.strength[pid];
+                saveData.attributes.dex = BaseAttributes.dexterity[pid];
+                saveData.attributes.vit = BaseAttributes.vitality[pid];
+                saveData.attributes.ene = BaseAttributes.energy[pid];
+
                 Storage.save(saveData);
             }
         }

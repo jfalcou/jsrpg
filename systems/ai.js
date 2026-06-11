@@ -3,9 +3,10 @@
  */
 
 import { defineQuery } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Velocity, Player, Enemy } from '../utils/components.js';
+import { Position, Velocity, Player, Enemy, AiTracker } from '../utils/components.js';
 
-const enemyQuery = defineQuery([Enemy, Position, Velocity]);
+// L'IA ne cherche plus "tous les ennemis", mais "ceux qui ont le tag AiTracker"
+const trackerQuery = defineQuery([Enemy, Position, Velocity, AiTracker]);
 const playerQuery = defineQuery([Player, Position]);
 
 /**
@@ -15,10 +16,6 @@ const playerQuery = defineQuery([Player, Position]);
  * @returns Une fonction système à utiliser dans le jeu.
  */
 export function createAiSystem() {
-    const ENEMY_SPEED = 150;
-    const ACTIVATION_RADIUS = 800;   // L'ennemi commence à bouger
-    const DEACTIVATION_RADIUS = 1000; // L'ennemi s'arrête (légèrement plus grand pour éviter le flickering)
-
     return function aiSystem(world, delta) {
         const players = playerQuery(world);
         if (players.length === 0) return world;
@@ -27,10 +24,10 @@ export function createAiSystem() {
         const px = Position.x[playerId];
         const py = Position.y[playerId];
 
-        const enemies = enemyQuery(world);
+        const trackers = trackerQuery(world);
 
-        for (let i = 0; i < enemies.length; i++) {
-            const eid = enemies[i];
+        for (let i = 0; i < trackers.length; i++) {
+            const eid = trackers[i];
             const ex = Position.x[eid];
             const ey = Position.y[eid];
 
@@ -38,17 +35,21 @@ export function createAiSystem() {
             const dy = py - ey;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
+            const speed = AiTracker.speed[eid];
+            const actRadius = AiTracker.activationRadius[eid];
+            const deactRadius = AiTracker.deactivationRadius[eid];
+
             // Hors portée — l'ennemi s'arrête
-            if (dist > DEACTIVATION_RADIUS) {
+            if (dist > deactRadius) {
                 Velocity.x[eid] = 0;
                 Velocity.y[eid] = 0;
                 continue;
             }
 
             // Dans la portée d'activation — l'ennemi fonce sur le joueur
-            if (dist <= ACTIVATION_RADIUS && dist > 0) {
-                Velocity.x[eid] = (dx / dist) * ENEMY_SPEED;
-                Velocity.y[eid] = (dy / dist) * ENEMY_SPEED;
+            if (dist <= actRadius && dist > 0) {
+                Velocity.x[eid] = (dx / dist) * speed;
+                Velocity.y[eid] = (dy / dist) * speed;
             }
         }
 

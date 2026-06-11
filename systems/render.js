@@ -5,6 +5,7 @@
 import { defineQuery, enterQuery, exitQuery, hasComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
 import { Position, Renderable, Player, Facing, Collider, HitFlash } from '../utils/components.js';
 import { fxRenderers } from '../spells/index.js';
+import { enemyRenderers } from '../enemies/index.js';
 import { damageNumbers } from './combat.js';
 
 const renderQuery = defineQuery([Position, Renderable]);
@@ -16,10 +17,13 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
     const spriteMap = new Map();
     const eyeMap = new Map();
 
-    // Pool générique — inclut tous les fxTypes déclarés dans les sorts
-    const pools = { 1: [] };
+    // Pool générique — inclut les types de base et les registres dynamiques
+    const pools = { 0: [], 3: [] }; // 0 = Joueur, 3 = Mur
     for (const fxType of fxRenderers.keys()) {
         pools[fxType] = [];
+    }
+    for (const enType of enemyRenderers.keys()) {
+        pools[enType] = [];
     }
 
     function createContainer(world, eid, type) {
@@ -31,29 +35,28 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
 
         const container = new PIXI.Container();
         const body = new PIXI.Graphics();
+        container.addChild(body);
 
         if (type === 0) {
             body.rect(0, 0, 32, 32).fill({ color: 0xFFFFFF });
-            container.addChild(body);
             const eye = new PIXI.Graphics();
             eye.rect(0, 0, 8, 8).fill({ color: 0xFFFFFF });
             container.addChild(eye);
-        } else if (type === 1) {
-            body.moveTo(16, 0).lineTo(32, 32).lineTo(0, 32).closePath().fill({ color: 0xFFFFFF });
-            container.addChild(body);
+            body.tint = 0x0074D9;
         } else if (type === 3) {
             const w = hasComponent(world, Collider, eid) ? Collider.width[eid] : 32;
             const h = hasComponent(world, Collider, eid) ? Collider.height[eid] : 32;
             body.rect(0, 0, w, h).fill({ color: 0xFFFFFF });
-            container.addChild(body);
+            body.tint = 0x555555;
+        } else if (enemyRenderers.has(type)) {
+            // Délégation du dessin initial au fichier de configuration de l'ennemi
+            const enemyDef = enemyRenderers.get(type);
+            if (enemyDef.visuals && enemyDef.visuals.setupVisual) {
+                enemyDef.visuals.setupVisual(body);
+            }
         } else {
-            // Tous les FX de sorts (type 4, 5, etc.) — body vide, dessin dynamique
-            container.addChild(body);
+            // Tous les FX de sorts — le body reste vide et est redessiné à chaque frame dans renderFx
         }
-
-        if (type === 0) body.tint = 0x0074D9;
-        else if (type === 1) body.tint = 0xFF4136;
-        else if (type === 3) body.tint = 0x555555;
 
         return container;
     }
@@ -63,8 +66,10 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
             container.visible = false;
             const body = container.getChildAt(0);
             if (body) {
-                if (type === 1) body.tint = 0xFF4136;
-                else if (fxRenderers.has(type)) body.clear();
+                body.tint = 0xFFFFFF;
+                if (fxRenderers.has(type)) {
+                    body.clear();
+                }
             }
             pools[type].push(container);
         } else {
@@ -130,8 +135,8 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
 
             if (!container) continue;
 
-            // Culling ennemis
-            if (type === 1) {
+            // Frustum Culling : S'applique uniquement aux ennemis enregistrés dynamiquement
+            if (enemyRenderers.has(type)) {
                 const sx = Position.x[eid] + camera.x;
                 const sy = Position.y[eid] + camera.y;
                 const onScreen = sx > -64 && sx < screenWidth + 64 &&
@@ -156,20 +161,24 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
 
             const body = container.getChildAt(0);
 
-            // FX des sorts — générique via fxRenderers
+            // FX des sorts — rendu dynamique via le dictionnaire de sorts
             const spell = fxRenderers.get(type);
             if (spell?.renderFx) {
                 spell.renderFx(body, eid);
                 continue;
             }
 
-            // HitFlash
+            // HitFlash & Teintes globales
             if (hasComponent(world, HitFlash, eid) && HitFlash.timer[eid] > 0) {
-                body.tint = 0xFFFFFF;
+                body.tint = 0xFFFFFF; // Flash blanc à l'impact
             } else {
-                if (type === 0) body.tint = 0x0074D9;
-                else if (type === 1) body.tint = 0xFF4136;
-                else if (type === 3) body.tint = 0x555555;
+                if (type === 0) {
+                    body.tint = 0x0074D9;
+                } else if (type === 3) {
+                    body.tint = 0x555555;
+                } else {
+                    body.tint = 0xFFFFFF; // Rétablissement visuel des ennemis modulaires
+                }
             }
         }
 
