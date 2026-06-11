@@ -17,8 +17,9 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
     const spriteMap = new Map();
     const eyeMap = new Map();
 
-    // Pool générique : 0 = Joueur, 3 = Mur, 5 = Loot
-    const pools = { 0: [], 3: [], 5: [] };
+    // L'ID 99 est réservé au Loot pour ne jamais écraser tes FX de sorts (qui utilisent 4, 5, 6...)
+    const pools = { 0: [], 3: [], 99: [] };
+
     for (const fxType of fxRenderers.keys()) pools[fxType] = [];
     for (const enType of enemyRenderers.keys()) pools[enType] = [];
 
@@ -30,7 +31,7 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
         }
 
         const container = new PIXI.Container();
-        const body = new PIXI.Graphics();
+        let body = new PIXI.Graphics();
         container.addChild(body);
 
         if (type === 0) {
@@ -44,9 +45,18 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
             const h = hasComponent(world, Collider, eid) ? Collider.height[eid] : 32;
             body.rect(0, 0, w, h).fill({ color: 0xFFFFFF });
             body.tint = 0x555555;
-        } else if (type === 5) {
-            // Conteneur pour le Loot
-            body.rect(0, 0, 16, 16).fill({ color: 0xFFFFFF });
+
+        } else if (type === 99) {
+            // Un Sprite pur pour le butin
+            container.removeChild(body);
+            const sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+            sprite.width = 20;
+            sprite.height = 20;
+            sprite.x = 8;
+            sprite.y = 8;
+            sprite.anchor.set(0.5); // Permet de le faire tourner sur lui-même
+            container.addChild(sprite);
+
         } else if (enemyRenderers.has(type)) {
             const enemyDef = enemyRenderers.get(type);
             if (enemyDef.visuals && enemyDef.visuals.setupVisual) {
@@ -60,10 +70,13 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
     function releaseContainer(container, type) {
         if (pools[type]) {
             container.visible = false;
-            const body = container.getChildAt(0);
-            if (body) {
-                body.tint = 0xFFFFFF;
-                if (fxRenderers.has(type)) body.clear();
+
+            if (type !== 99) { // Le loot est un sprite, on ne le clear() pas comme un Graphics
+                const body = container.getChildAt(0);
+                if (body) {
+                    body.tint = 0xFFFFFF;
+                    if (fxRenderers.has(type)) body.clear();
+                }
             }
             pools[type].push(container);
         } else {
@@ -84,7 +97,6 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
     const dmgCtx = dmgCanvas.getContext('2d');
 
     return function renderSystem(world, delta) {
-
         const entered = renderQueryEnter(world);
         for (let i = 0; i < entered.length; i++) {
             const eid = entered[i];
@@ -124,7 +136,7 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
 
             if (!container) continue;
 
-            if (enemyRenderers.has(type) || type === 5) {
+            if (enemyRenderers.has(type) || type === 99) {
                 const sx = Position.x[eid] + camera.x;
                 const sy = Position.y[eid] + camera.y;
                 const onScreen = sx > -64 && sx < screenWidth + 64 &&
@@ -147,19 +159,26 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
                 }
             }
 
+            // RENDU DU LOOT (ID 99)
+            if (type === 99) {
+                const sprite = container.getChildAt(0);
+                const itemData = droppedItems.get(eid);
+
+                if (itemData && itemData.color) {
+                    sprite.tint = parseInt(itemData.color.replace('#', ''), 16);
+                }
+
+                sprite.rotation += delta * 2; // Animation de rotation
+                continue;
+            }
+
             const body = container.getChildAt(0);
 
+            // RENDU DES SORTS RESTAURÉ
             const spell = fxRenderers.get(type);
             if (spell?.renderFx) {
                 spell.renderFx(body, eid);
                 continue;
-            }
-
-            // COLORATION DU LOOT
-            if (type === 5) {
-                const itemData = droppedItems.get(eid);
-                if (itemData) body.tint = itemData.color.replace('#', '0x');
-                continue; // Pas de HitFlash sur le loot
             }
 
             if (hasComponent(world, HitFlash, eid) && HitFlash.timer[eid] > 0) {

@@ -13,19 +13,10 @@ const playerQuery = defineQuery([Player, PlayerStats, Health]);
 const playerBodyQuery = defineQuery([Player, Position, Collider, Health]);
 const hitFlashQuery = defineQuery([HitFlash]);
 
-// Tableau partagé avec render.js pour les chiffres flottants
 export const damageNumbers = [];
 
 export function spawnDamageNumber(x, y, damage, color = '#ffffff', fontSize = 18) {
-    damageNumbers.push({
-        x, y,
-        damage: Math.floor(damage),
-        color,
-        fontSize,
-        alpha: 1.0,
-        vy: -80,
-        timer: 0.8
-    });
+    damageNumbers.push({ x, y, damage: Math.floor(damage), color, fontSize, alpha: 1.0, vy: -80, timer: 0.8 });
 }
 
 export function createCombatSystem() {
@@ -38,22 +29,15 @@ export function createCombatSystem() {
         const flashEntities = hitFlashQuery(world);
         for (let i = 0; i < flashEntities.length; i++) {
             const eid = flashEntities[i];
-            if (HitFlash.timer[eid] > 0) {
-                HitFlash.timer[eid] -= delta;
-            }
+            if (HitFlash.timer[eid] > 0) HitFlash.timer[eid] -= delta;
         }
 
-        // 1. IMPACTS DES ENNEMIS SUR LE JOUEUR
         const playerBodies = playerBodyQuery(world);
         if (playerBodies.length > 0) {
             const pid = playerBodies[0];
-
             for (let i = 0; i < enemies.length; i++) {
                 const eid = enemies[i];
-                if (checkAABB(
-                    Position.x[pid], Position.y[pid], Collider.width[pid], Collider.height[pid],
-                    Position.x[eid], Position.y[eid], Collider.width[eid], Collider.height[eid]
-                )) {
+                if (checkAABB(Position.x[pid], Position.y[pid], Collider.width[pid], Collider.height[pid], Position.x[eid], Position.y[eid], Collider.width[eid], Collider.height[eid])) {
                     const dps = hasComponent(world, EnemyStats, eid) ? EnemyStats.damage[eid] : 10;
                     Health.current[pid] -= dps * delta;
                 }
@@ -61,31 +45,51 @@ export function createCombatSystem() {
             if (Health.current[pid] < 0) Health.current[pid] = 0;
         }
 
-        // 2. DEATH SWEEP + DISTRIBUTION DE L'XP DYNAMIQUE ET DU LOOT
         for (let j = 0; j < enemies.length; j++) {
             const eid = enemies[j];
 
             if (Health.current[eid] <= 0) {
-                let xpGain = 0;
-                if (hasComponent(world, EnemyStats, eid)) {
-                    xpGain = EnemyStats.xpReward[eid];
-                }
+                let xpGain = hasComponent(world, EnemyStats, eid) ? EnemyStats.xpReward[eid] : 0;
 
                 // ==========================================================
-                // LOGIQUE DE DROP (30% de chance de lâcher un objet)
+                // DROPS AU SOL AVEC ANTI-COLLISION MURALE (80% drop rate)
                 // ==========================================================
-                if (Math.random() < 0.30) {
+                if (Math.random() < 0.80) {
                     const dropEid = addEntity(world);
                     addComponent(world, Position, dropEid);
                     addComponent(world, Collider, dropEid);
                     addComponent(world, Renderable, dropEid);
                     addComponent(world, Loot, dropEid);
 
-                    Position.x[dropEid] = Position.x[eid];
-                    Position.y[dropEid] = Position.y[eid];
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = Math.random() * 50 + 40;
+
+                    let dropX = Position.x[eid] + Math.cos(angle) * distance;
+                    let dropY = Position.y[eid] + Math.sin(angle) * distance;
+
+                    // FIX : On vérifie si la zone d'impact prévue tape un mur
+                    let inWall = false;
+                    const walls = wallQuery(world);
+                    for (let w = 0; w < walls.length; w++) {
+                        const wid = walls[w];
+                        if (checkAABB(dropX, dropY, 16, 16, Position.x[wid], Position.y[wid], Collider.width[wid], Collider.height[wid])) {
+                            inWall = true;
+                            break;
+                        }
+                    }
+
+                    // Si l'objet tombe dans un mur, on le remet en sécurité là où le monstre est mort
+                    if (inWall) {
+                        dropX = Position.x[eid];
+                        dropY = Position.y[eid];
+                    }
+
+                    Position.x[dropEid] = dropX;
+                    Position.y[dropEid] = dropY;
+
                     Collider.width[dropEid] = 16;
                     Collider.height[dropEid] = 16;
-                    Renderable.type[dropEid] = 5; // ID pour le loot
+                    Renderable.type[dropEid] = 99; // L'ID 99 n'écrase plus l'attaque de l'épée !
 
                     const pool = ['short_sword', 'health_potion'];
                     const randomBase = pool[Math.floor(Math.random() * pool.length)];
@@ -109,7 +113,6 @@ export function createCombatSystem() {
                 }
             }
         }
-
         return world;
     };
 }
