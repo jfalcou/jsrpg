@@ -3,9 +3,10 @@
  */
 
 import { defineQuery, removeEntity, hasComponent, addEntity, addComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Collider, Enemy, Wall, Health, HitFlash, Player, PlayerStats, EnemyStats, Loot, Renderable, droppedItems, Dash } from '../utils/components.js';
+import { Position, Collider, Enemy, Wall, Health, HitFlash, Player, PlayerStats, EnemyStats, Loot, Renderable, droppedItems, Dash, enemyTypeMap } from '../utils/components.js';
 import { buildWallHash, checkAABB } from '../utils/physics.js';
 import { generateItem } from '../items/index.js';
+import { enemyRegistry } from '../enemies/index.js';
 
 const enemyQuery = defineQuery([Enemy, Position, Collider, Health]);
 const wallQuery  = defineQuery([Wall, Position, Collider]);
@@ -15,10 +16,25 @@ const hitFlashQuery = defineQuery([HitFlash]);
 
 export const damageNumbers = [];
 
-// Remplacement statique par une fonction de loot table abstraite pour les futures configurations
-function rollLootType() {
-    const pool = ['short_sword', 'health_potion'];
-    return pool[Math.floor(Math.random() * pool.length)];
+/**
+ * Résout la table de butin d'une entité de manière aléatoire pondérée.
+ */
+function resolveLootTable(lootTable) {
+    if (!lootTable || !lootTable.items || lootTable.items.length === 0) return null;
+
+    if (Math.random() > lootTable.dropChance) return null;
+
+    const totalWeight = lootTable.items.reduce((sum, item) => sum + item.weight, 0);
+    if (totalWeight <= 0) return null;
+
+    let roll = Math.random() * totalWeight;
+    for (const item of lootTable.items) {
+        roll -= item.weight;
+        if (roll <= 0) {
+            return item.id;
+        }
+    }
+    return null;
 }
 
 export function spawnDamageNumber(x, y, damage, color = '#ffffff', fontSize = 18) {
@@ -42,9 +58,6 @@ export function createCombatSystem() {
         const playerBodies = playerBodyQuery(world);
         if (playerBodies.length > 0) {
             const pid = playerBodies[0];
-
-            // CORRECTION : Le mode divin est désactivé !
-            // On s'assure que l'invincibilité n'est vraie que pendant l'action du dash.
             const isInvincible = hasComponent(world, Dash, pid) && Dash.active[pid] === 1;
 
             if (!isInvincible) {
@@ -66,9 +79,14 @@ export function createCombatSystem() {
                 let xpGain = hasComponent(world, EnemyStats, eid) ? EnemyStats.xpReward[eid] : 25;
 
                 // ==========================================================
-                // DROPS AU SOL
+                // DROPS AU SOL VIA ID LOGIQUE & LOOT TABLE HOMOGÉNÉISÉE
                 // ==========================================================
-                if (Math.random() < 0.80) {
+                const logicalEnemyId = enemyTypeMap.get(eid);
+                const enemyDef = enemyRegistry[logicalEnemyId];
+
+                const selectedItemId = resolveLootTable(enemyDef?.lootTable);
+
+                if (selectedItemId) {
                     const dropEid = addEntity(world);
                     addComponent(world, Position, dropEid);
                     addComponent(world, Collider, dropEid);
@@ -92,7 +110,6 @@ export function createCombatSystem() {
                     }
 
                     if (inWall) {
-                        // Évite l'empilement au pixel près en ajoutant un bruit de dispersion
                         dropX = Position.x[eid] + (Math.random() * 16 - 8);
                         dropY = Position.y[eid] + (Math.random() * 16 - 8);
                     }
@@ -104,15 +121,15 @@ export function createCombatSystem() {
                     Renderable.type[dropEid] = 99;
 
                     try {
-                        const randomBase = rollLootType();
-                        const itemInstance = generateItem(randomBase);
+                        const itemInstance = generateItem(selectedItemId);
                         droppedItems.set(dropEid, itemInstance);
                     } catch (err) {
-                        console.error("Erreur critique de génération du butin :", err);
+                        console.error("Erreur critique de génération du butin générique :", err);
                         removeEntity(world, dropEid);
                     }
                 }
 
+                enemyTypeMap.delete(eid);
                 removeEntity(world, eid);
 
                 // ==========================================================
@@ -129,7 +146,7 @@ export function createCombatSystem() {
                         const nextXp = PlayerStats.xpToNext[pid] * 1.5;
                         PlayerStats.xpToNext[pid] = Math.floor(nextXp / 25) * 25;
 
-                        Health.current[pid] = Health.max[pid]; // Soin complet
+                        Health.current[pid] = Health.max[pid];
 
                         spawnDamageNumber(Position.x[pid], Position.y[pid] - 20, "NIVEAU SUPÉRIEUR !", "#FFD700", 24);
                     }

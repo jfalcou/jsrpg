@@ -6,6 +6,9 @@ import { Position, Velocity, Collider, Knockback, Player } from '../utils/compon
 import { checkAABB } from '../utils/physics.js';
 import { hasComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
 
+// Marge microscopique pour éviter de se superposer parfaitement avec la hitbox d'un mur (anti-tunneling)
+const EPSILON = 0.1;
+
 export function applyVelocityAndBounds(world, eid, delta, walls, worldWidth, worldHeight) {
     let vx = Velocity.x[eid];
     let vy = Velocity.y[eid];
@@ -32,12 +35,15 @@ export function applyVelocityAndBounds(world, eid, delta, walls, worldWidth, wor
         if (Position.x[eid] < 0) Position.x[eid] = 0;
         if (Position.x[eid] + w > worldWidth) Position.x[eid] = worldWidth - w;
 
-        // Collisions Murs X (Sliding)
+        // Collisions Murs X (Sliding avec Epsilon)
         for (let j = 0; j < walls.length; j++) {
             const wid = walls[j];
             if (checkAABB(Position.x[eid], Position.y[eid], w, h, Position.x[wid], Position.y[wid], Collider.width[wid], Collider.height[wid])) {
-                if (vx > 0) Position.x[eid] = Position.x[wid] - w;
-                else if (vx < 0) Position.x[eid] = Position.x[wid] + Collider.width[wid];
+                if (vx > 0) {
+                    Position.x[eid] = Position.x[wid] - w - EPSILON;
+                } else if (vx < 0) {
+                    Position.x[eid] = Position.x[wid] + Collider.width[wid] + EPSILON;
+                }
             }
         }
     }
@@ -50,12 +56,15 @@ export function applyVelocityAndBounds(world, eid, delta, walls, worldWidth, wor
         if (Position.y[eid] < 0) Position.y[eid] = 0;
         if (Position.y[eid] + h > worldHeight) Position.y[eid] = worldHeight - h;
 
-        // Collisions Murs Y (Sliding)
+        // Collisions Murs Y (Sliding avec Epsilon)
         for (let j = 0; j < walls.length; j++) {
             const wid = walls[j];
             if (checkAABB(Position.x[eid], Position.y[eid], w, h, Position.x[wid], Position.y[wid], Collider.width[wid], Collider.height[wid])) {
-                if (vy > 0) Position.y[eid] = Position.y[wid] - h;
-                else if (vy < 0) Position.y[eid] = Position.y[wid] + Collider.height[wid];
+                if (vy > 0) {
+                    Position.y[eid] = Position.y[wid] - h - EPSILON;
+                } else if (vy < 0) {
+                    Position.y[eid] = Position.y[wid] + Collider.height[wid] + EPSILON;
+                }
             }
         }
     }

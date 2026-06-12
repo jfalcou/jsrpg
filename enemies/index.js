@@ -3,15 +3,13 @@
  */
 
 import { addEntity, addComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Velocity, Enemy, Renderable, Collider, Health, Knockback, HitFlash, Character, AiTracker, EnemyStats } from '../utils/components.js';
+import { Position, Velocity, Enemy, Renderable, Collider, Health, Knockback, HitFlash, Character, AiTracker, EnemyStats, enemyTypeMap } from '../utils/components.js';
 import skeleton from './skeleton.js';
 
-// Le registre global (dictionnaire logique)
 export const enemyRegistry = {
     'skeleton': skeleton
 };
 
-// NOUVEAU : Le registre visuel pour le système de rendu (associe renderType -> logique visuelle)
 export const enemyRenderers = new Map(
     Object.values(enemyRegistry).map(def => [def.renderType, def])
 );
@@ -41,7 +39,6 @@ export function spawnEnemy(world, typeId, x, y) {
     Collider.width[eid] = def.physics.width;
     Collider.height[eid] = def.physics.height;
 
-    // Utilisation de l'ID visuel défini dans le fichier
     Renderable.type[eid] = def.renderType;
 
     Health.max[eid] = def.stats.hp;
@@ -62,6 +59,8 @@ export function spawnEnemy(world, typeId, x, y) {
         AiTracker.activationRadius[eid] = 800;
         AiTracker.deactivationRadius[eid] = 1000;
     }
+
+    enemyTypeMap.set(eid, typeId);
 
     return eid;
 }

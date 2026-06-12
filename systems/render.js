@@ -17,6 +17,9 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
     const spriteMap = new Map();
     const eyeMap = new Map();
 
+    // ACTIVATION DU TRI DE PROFONDEUR SUR LE CONTENEUR PRINCIPAL
+    worldContainer.sortableChildren = true;
+
     // L'ID 99 est réservé au Loot pour ne jamais écraser tes FX de sorts (qui utilisent 4, 5, 6...)
     const pools = { 0: [], 3: [], 99: [] };
 
@@ -150,6 +153,19 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
 
             container.x = Position.x[eid];
             container.y = Position.y[eid];
+
+            // GESTION DU Z-INDEX (TRI DE PROFONDEUR DYNAMIQUE)
+            const baseHeight = hasComponent(world, Collider, eid) ? Collider.height[eid] : 32;
+
+            if (type === 99) {
+                container.zIndex = Position.y[eid]; // Butin plaqué au sol derrière les personnages
+            } else if (fxRenderers.has(type)) {
+                container.zIndex = Position.y[eid] + 10000; // Effets visuels (sorts) par-dessus tout
+            } else if (type === 3) {
+                container.zIndex = Position.y[eid] + baseHeight; // Murs
+            } else {
+                container.zIndex = Position.y[eid] + baseHeight; // Joueurs et Ennemis triés selon la position de leurs pieds
+            }
 
             if (hasComponent(world, Facing, eid)) {
                 const eye = eyeMap.get(eid);

@@ -29,5 +29,14 @@ export default {
             body.rect(20, 6, 6, 6).fill({ color: 0xFF0000 }); // Oeil droit
         }
     },
-    aiProfile: 'tracker'
+    aiProfile: 'tracker',
+
+    // Table de butin avec des probabilités homogènes (décimales)
+    lootTable: {
+        dropChance: 0.70, // 70% de chance d'obtenir un objet
+        items: [
+            { id: 'health_potion', weight: 0.65 }, // 65% de chances relatives
+            { id: 'short_sword', weight: 0.35 }    // 35% de chances relatives
+        ]
+    }
 };
