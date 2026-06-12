@@ -5,8 +5,8 @@
 import { defineQuery, removeEntity, hasComponent, addEntity, addComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
 import { Position, Collider, Enemy, Wall, Health, HitFlash, Player, PlayerStats, EnemyStats, Loot, Renderable, droppedItems, Dash, enemyTypeMap } from '../utils/components.js';
 import { buildWallHash, checkAABB } from '../utils/physics.js';
-import { generateItem } from '../items/index.js';
-import { enemyRegistry } from '../enemies/index.js';
+import { generateItem } from '../data/items/index.js';
+import { enemyRegistry } from '../data/enemies/index.js';
 
 const enemyQuery = defineQuery([Enemy, Position, Collider, Health]);
 const wallQuery  = defineQuery([Wall, Position, Collider]);

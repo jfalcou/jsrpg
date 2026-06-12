@@ -3,8 +3,8 @@
  */
 
 import { addEntity, addComponent, defineQuery, removeEntity } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Facing, SwordFx, Renderable, Enemy, Health, Knockback, HitFlash, Collider } from '../utils/components.js';
-import { spawnDamageNumber } from '../systems/combat.js';
+import { Position, Facing, SwordFx, Renderable, Enemy, Health, Knockback, HitFlash, Collider } from '../../utils/components.js';
+import { spawnDamageNumber } from '../../systems/combat.js';
 
 const enemyQuery = defineQuery([Enemy, Position, Health, Collider]);
 

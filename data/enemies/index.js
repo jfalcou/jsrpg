@@ -3,7 +3,7 @@
  */
 
 import { addEntity, addComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Velocity, Enemy, Renderable, Collider, Health, Knockback, HitFlash, Character, AiTracker, EnemyStats, enemyTypeMap } from '../utils/components.js';
+import { Position, Velocity, Enemy, Renderable, Collider, Health, Knockback, HitFlash, Character, AiTracker, EnemyStats, enemyTypeMap } from '../../utils/components.js';
 import skeleton from './skeleton.js';
 
 export const enemyRegistry = {

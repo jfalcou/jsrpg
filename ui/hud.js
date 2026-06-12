@@ -1,5 +1,5 @@
 import { Health, PlayerStats, Attributes, BaseAttributes } from '../utils/components.js';
-import { equippedSpells } from '../spells/index.js';
+import { equippedSpells } from '../data/spells/index.js';
 import { uiState } from './state.js';
 import { applyStatsCalculation } from '../utils/inventory.js';
 

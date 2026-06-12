@@ -3,9 +3,9 @@
  */
 
 import { addEntity, addComponent, defineQuery, removeEntity } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, NovaFx, Renderable, Enemy, Health, Knockback, HitFlash, Collider } from '../utils/components.js';
-import { hasWallBetween } from '../utils/physics.js';
-import { spawnDamageNumber } from '../systems/combat.js';
+import { Position, NovaFx, Renderable, Enemy, Health, Knockback, HitFlash, Collider } from '../../utils/components.js';
+import { hasWallBetween } from '../../utils/physics.js';
+import { spawnDamageNumber } from '../../systems/combat.js';
 
 const enemyQuery = defineQuery([Enemy, Position, Health, Collider]);
 

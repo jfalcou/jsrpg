@@ -4,7 +4,7 @@
 
 import { defineQuery } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
 import { Position, Velocity, Player, Facing, Dash, Attributes } from '../utils/components.js';
-import { equippedSpells, tickCooldowns } from '../spells/index.js';
+import { equippedSpells, tickCooldowns } from '../data/spells/index.js';
 import { castSpell } from './spells.js';
 
 const keys = {};

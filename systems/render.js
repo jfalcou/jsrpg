@@ -4,8 +4,8 @@
 
 import { defineQuery, enterQuery, exitQuery, hasComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
 import { Position, Renderable, Player, Facing, Collider, HitFlash, droppedItems } from '../utils/components.js';
-import { fxRenderers } from '../spells/index.js';
-import { enemyRenderers } from '../enemies/index.js';
+import { fxRenderers } from '../data/spells/index.js';
+import { enemyRenderers } from '../data/enemies/index.js';
 import { damageNumbers } from './combat.js';
 
 const renderQuery = defineQuery([Position, Renderable]);
