@@ -2,17 +2,22 @@
  * @fileoverview Contrôleur Principal du Moteur de Jeu.
  */
 
+// IMPORTS DATA & BDD
 import { loadGameData } from './core/dataManager.js';
 import { initEnemyRenderers } from './data/enemies_index.js';
+import { sliceGridSpritesheet } from './core/spriteParser.js';
 
+// IMPORTS CORE & UI
 import { initMenus } from './ui/menus.js';
 import { initSaveManager } from './core/saveManager.js';
 import { spawnPlayer } from './core/player.js';
 import { loadLevel } from './core/levelManager.js';
 
+// IMPORTS ECS
 import { createWorld, defineQuery } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
 import { Player, Health } from './utils/components.js';
 
+// IMPORTS SYSTÈMES
 import { createInputSystem } from './systems/input.js';
 import { createAiSystem } from './systems/ai.js';
 import { createLifetimeSystem } from './systems/lifetime.js';
@@ -23,9 +28,8 @@ import { createRenderSystem } from './systems/render.js';
 import { createUiSystem, getInventorySaveData } from './systems/ui.js';
 import { createLootSystem } from './systems/loot.js';
 
+// IMPORTS OUTILS & NETTOYAGE (Soft Reset)
 import { Storage } from './utils/storage.js';
-
-// IMPORTS DE NETTOYAGE (Soft Reset)
 import { resetComponents } from './utils/components.js';
 import { resetPhysics } from './utils/physics.js';
 import { resetCooldowns } from './data/spells/index.js';
@@ -36,13 +40,16 @@ const WORLD_WIDTH   = 3000;
 const WORLD_HEIGHT  = 3000;
 const camera = { x: 0, y: 0 };
 
-// 1. VARIABLES GLOBALES DE L'APPLICATION
+// VARIABLES GLOBALES DE L'APPLICATION
 const app = new PIXI.Application();
 let currentTickerCallback = null;
 
-// 2. SÉQUENCE D'AMORÇAGE (BOOTSTRAP) - Exécutée une seule fois
+// ============================================================================
+// SÉQUENCE D'AMORÇAGE (BOOTSTRAP) - Exécutée une seule fois au chargement
+// ============================================================================
 async function bootstrap() {
     try {
+        // 1. Initialisation de la carte graphique
         await app.init({
             canvas: document.getElementById('game-canvas'),
             width: SCREEN_WIDTH,
@@ -51,10 +58,23 @@ async function bootstrap() {
             preference: 'webgpu'
         });
 
+        // 2. Chargement des images brutes et découpage automatique
+        PIXI.Assets.add({ alias: 'hero_sheet', src: './medias/sprites/hero.png' });
+        await PIXI.Assets.load('hero_sheet');
+        sliceGridSpritesheet('hero_sheet', 'hero', 3, 4);
+
+        PIXI.Assets.add({ alias: 'skeleton_sheet', src: './medias/sprites/skeleton.png' });
+        await PIXI.Assets.load('skeleton_sheet');
+        sliceGridSpritesheet('skeleton_sheet', 'skeleton', 3, 4);
+
+        // 3. Chargement de la base de données (JSON)
         await loadGameData();
         initEnemyRenderers();
+
+        // 4. Initialisation des menus HTML
         initMenus(startGame);
 
+        // 5. Tout est prêt : on révèle les boutons du menu principal
         const loadingIndicator = document.getElementById('loading-indicator');
         const mainMenuButtons = document.getElementById('main-menu-buttons');
         if (loadingIndicator && mainMenuButtons) {
@@ -72,15 +92,21 @@ async function bootstrap() {
     }
 }
 
+// Lancement du jeu
 bootstrap();
 
-// 3. LANCEMENT D'UNE PARTIE
+// ============================================================================
+// LANCEMENT D'UNE PARTIE (Nouvelle ou Chargée)
+// ============================================================================
 async function startGame(saveData) {
+    // Restauration de la santé si le joueur était mort
     if (saveData.health < 1) {
         saveData.health = saveData.maxHealth;
     }
 
+    // ---------------------------------------------------------
     // A. PURGE DE L'ÉTAT PRÉCÉDENT (Soft Reset)
+    // ---------------------------------------------------------
     resetComponents();
     resetPhysics();
     resetSpells();
@@ -94,7 +120,9 @@ async function startGame(saveData) {
 
     app.stage.removeChildren(); // Vider le canvas PixiJS précédent
 
+    // ---------------------------------------------------------
     // B. INITIALISATION DE L'INTERFACE HTML
+    // ---------------------------------------------------------
     document.getElementById('screen-main-menu').classList.add('hidden');
     document.getElementById('screen-char-creation').classList.add('hidden');
     document.getElementById('screen-char-select').classList.add('hidden');
@@ -104,7 +132,7 @@ async function startGame(saveData) {
         const worldContainer = new PIXI.Container();
         app.stage.addChild(worldContainer);
 
-        // Dessin du sol
+        // Dessin de la grille du sol
         const ground = new PIXI.Graphics();
         ground.rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT).fill({ color: 0x111111 });
         for (let i = 0; i <= WORLD_WIDTH; i += 100) {
@@ -113,13 +141,18 @@ async function startGame(saveData) {
         }
         worldContainer.addChild(ground);
 
-        // C. CREATION DE LA LOGIQUE
+        // ---------------------------------------------------------
+        // C. CRÉATION DU MONDE ET DES ENTITÉS ECS
+        // ---------------------------------------------------------
         const world = createWorld();
         const playerQuery = defineQuery([Player, Health]);
 
         loadLevel(world, 'test_level', WORLD_WIDTH, WORLD_HEIGHT);
         spawnPlayer(world, saveData, WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
 
+        // ---------------------------------------------------------
+        // D. INITIALISATION DES SYSTÈMES
+        // ---------------------------------------------------------
         const inputSystem    = createInputSystem();
         const aiSystem       = createAiSystem();
         const lifetimeSystem = createLifetimeSystem();
@@ -132,7 +165,9 @@ async function startGame(saveData) {
 
         const stopSaveManager = initSaveManager(world, saveData);
 
-        // D. DÉFINITION DE LA BOUCLE DE JEU
+        // ---------------------------------------------------------
+        // E. BOUCLE DE JEU PRINCIPALE (TICKER)
+        // ---------------------------------------------------------
         currentTickerCallback = (ticker) => {
             const delta = ticker.deltaMS / 1000;
 
@@ -152,12 +187,12 @@ async function startGame(saveData) {
                 const pid = players[0];
 
                 if (Health.current[pid] <= 0) {
-                    // Arrêt propre
+                    // Arrêt propre de la boucle
                     app.ticker.remove(currentTickerCallback);
                     currentTickerCallback = null;
                     stopSaveManager();
 
-                    // Sauvegarde post-mortem
+                    // Sauvegarde post-mortem pour l'inventaire et l'expérience
                     saveData.health = saveData.maxHealth;
                     const invData = getInventorySaveData();
                     saveData.bag = invData.bag;

@@ -3,9 +3,10 @@
  */
 
 import { defineQuery } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Velocity, Player, Enemy, AiTracker, State, STATES } from '../utils/components.js';
+import { Position, Velocity, Player, Enemy, AiTracker, Facing, State, STATES } from '../utils/components.js';
 
-const trackerQuery = defineQuery([Enemy, Position, Velocity, AiTracker, State]);
+// On ajoute State et Facing à la requête pour être sûr que l'ennemi les possède
+const trackerQuery = defineQuery([Enemy, Position, Velocity, AiTracker, State, Facing]);
 const playerQuery = defineQuery([Player, Position]);
 
 export function createAiSystem() {
@@ -46,10 +47,17 @@ export function createAiSystem() {
                 continue;
             }
 
-            // Dans la portée d'activation — l'ennemi fonce sur le joueur
             if (dist <= actRadius && dist > 0) {
-                Velocity.x[eid] = (dx / dist) * speed;
-                Velocity.y[eid] = (dy / dist) * speed;
+                // Normalisation du vecteur
+                const dirX = dx / dist;
+                const dirY = dy / dist;
+
+                Velocity.x[eid] = dirX * speed;
+                Velocity.y[eid] = dirY * speed;
+
+                Facing.x[eid] = dirX;
+                Facing.y[eid] = dirY;
+
                 State.current[eid] = STATES.RUN;
             }
         }

@@ -2,7 +2,7 @@
  * @fileoverview Instanciation des ennemis et registre des scripts visuels.
  */
 import { addEntity, addComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Velocity, Enemy, Renderable, Collider, Health, Knockback, HitFlash, Character, AiTracker, EnemyStats, enemyTypeMap, State, STATES } from '../utils/components.js';
+import { Position, Velocity, Facing, Enemy, Renderable, Collider, Health, Knockback, HitFlash, Character, AiTracker, EnemyStats, enemyTypeMap, State, STATES } from '../utils/components.js';
 import { GameData } from '../core/dataManager.js';
 
 // REGISTRE DES SCRIPTS (La logique graphique qui ne va pas dans le JSON)
@@ -22,7 +22,7 @@ export const enemyRenderers = new Map();
 // Initialisé par le bootloader une fois les JSON chargés
 export function initEnemyRenderers() {
     Object.values(GameData.enemies).forEach(def => {
-        enemyRenderers.set(def.renderType, { visuals: enemyScripts[def.id] });
+        enemyRenderers.set(def.renderType, def);
     });
 }
 
@@ -43,6 +43,7 @@ export function spawnEnemy(world, typeId, x, y) {
     addComponent(world, Character, eid);
     addComponent(world, EnemyStats, eid);
     addComponent(world, State, eid);
+    addComponent(world, Facing, eid);
 
     State.current[eid] = STATES.IDLE;
     Position.x[eid] = x;
@@ -60,7 +61,8 @@ export function spawnEnemy(world, typeId, x, y) {
 
     EnemyStats.xpReward[eid] = def.stats.xp;
     EnemyStats.damage[eid] = def.stats.damage;
-
+    Facing.x[eid] = 0;
+    Facing.y[eid] = 1;
     Knockback.x[eid] = 0;
     Knockback.y[eid] = 0;
     Knockback.elasticity[eid] = def.physics.knockbackElasticity;

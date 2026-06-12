@@ -1,28 +1,51 @@
 /**
- * @fileoverview Le pont entre l'ECS et PixiJS + chiffres flottants.
+ * @fileoverview Le pont entre l'ECS, PixiJS et les animations multi-directionnelles.
  */
 
 import { defineQuery, enterQuery, exitQuery, hasComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Renderable, Player, Facing, Collider, HitFlash, droppedItems } from '../utils/components.js';
+import { Position, Renderable, Player, Facing, Collider, HitFlash, droppedItems, State, STATES } from '../utils/components.js';
 import { fxRenderers } from '../data/spells/index.js';
 import { enemyRenderers } from '../data/enemies_index.js';
 import { damageNumbers } from './combat.js';
+
+// NOUVEAU : On importe le dictionnaire généré par le découpeur automatique
+import { globalAnimations } from '../core/spriteParser.js';
 
 const renderQuery = defineQuery([Position, Renderable]);
 const renderQueryEnter = enterQuery(renderQuery);
 const renderQueryExit = exitQuery(renderQuery);
 const playerQuery = defineQuery([Player, Position]);
 
+// HELPER : Récupère les textures selon l'état et la direction
+function getAnimTextures(prefix, stateIndex, direction) {
+    let stateName = 'idle';
+    if (stateIndex === STATES.RUN) stateName = 'run';
+    if (stateIndex === STATES.ATTACK) stateName = 'attack';
+    if (stateIndex === STATES.DASH) stateName = 'run'; // On réutilise la course pour le dash
+    if (stateIndex === STATES.DEAD) stateName = 'dead';
+
+    const animKey = `${prefix}_${stateName}_${direction}`;
+
+    // 1. Cherche l'animation exacte (ex: hero_run_down)
+    if (globalAnimations[animKey]) {
+        return globalAnimations[animKey];
+    }
+
+    // 2. Fallback de sécurité : l'idle dans la bonne direction
+    const fallbackDirKey = `${prefix}_idle_${direction}`;
+    if (globalAnimations[fallbackDirKey]) {
+        return globalAnimations[fallbackDirKey];
+    }
+
+    // 3. Fallback d'ultime recours si l'entité n'est pas encore packée
+    return [PIXI.Texture.WHITE];
+}
+
 export function createRenderSystem(app, worldContainer, camera, screenWidth, screenHeight) {
     const spriteMap = new Map();
-    const eyeMap = new Map();
-
-    // ACTIVATION DU TRI DE PROFONDEUR SUR LE CONTENEUR PRINCIPAL
     worldContainer.sortableChildren = true;
 
-    // L'ID 99 est réservé au Loot pour ne jamais écraser tes FX de sorts (qui utilisent 4, 5, 6...)
     const pools = { 0: [], 3: [], 99: [] };
-
     for (const fxType of fxRenderers.keys()) pools[fxType] = [];
     for (const enType of enemyRenderers.keys()) pools[enType] = [];
 
@@ -34,37 +57,47 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
         }
 
         const container = new PIXI.Container();
-        let body = new PIXI.Graphics();
-        container.addChild(body);
 
-        if (type === 0) {
-            body.rect(0, 0, 32, 32).fill({ color: 0xFFFFFF });
-            const eye = new PIXI.Graphics();
-            eye.rect(0, 0, 8, 8).fill({ color: 0xFFFFFF });
-            container.addChild(eye);
-            body.tint = 0x0074D9;
+        if (type === 0 || enemyRenderers.has(type)) {
+            let prefix = 'hero';
+            if (type !== 0) {
+                const def = enemyRenderers.get(type);
+                prefix = def.id;
+            }
+
+            const anim = new PIXI.AnimatedSprite([PIXI.Texture.WHITE]);
+            anim.anchor.set(0.5);
+            const w = hasComponent(world, Collider, eid) ? Collider.width[eid] : 32;
+            const h = hasComponent(world, Collider, eid) ? Collider.height[eid] : 32;
+            anim.x = w / 2;
+            anim.y = h / 2;
+
+            // La vitesse de l'animation
+            anim.animationSpeed = 0.12;
+            anim.animPrefix = prefix;
+            anim.currentState = -1;
+            anim.currentDir = 'none';
+
+            container.addChild(anim);
+
         } else if (type === 3) {
+            const body = new PIXI.Graphics();
             const w = hasComponent(world, Collider, eid) ? Collider.width[eid] : 32;
             const h = hasComponent(world, Collider, eid) ? Collider.height[eid] : 32;
             body.rect(0, 0, w, h).fill({ color: 0xFFFFFF });
             body.tint = 0x555555;
+            container.addChild(body);
 
         } else if (type === 99) {
-            // Un Sprite pur pour le butin
-            container.removeChild(body);
             const sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
-            sprite.width = 20;
-            sprite.height = 20;
-            sprite.x = 8;
-            sprite.y = 8;
-            sprite.anchor.set(0.5); // Permet de le faire tourner sur lui-même
+            sprite.width = 20; sprite.height = 20;
+            sprite.x = 8; sprite.y = 8;
+            sprite.anchor.set(0.5);
             container.addChild(sprite);
 
-        } else if (enemyRenderers.has(type)) {
-            const enemyDef = enemyRenderers.get(type);
-            if (enemyDef.visuals && enemyDef.visuals.setupVisual) {
-                enemyDef.visuals.setupVisual(body);
-            }
+        } else if (fxRenderers.has(type)) {
+            const body = new PIXI.Graphics();
+            container.addChild(body);
         }
 
         return container;
@@ -73,13 +106,12 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
     function releaseContainer(container, type) {
         if (pools[type]) {
             container.visible = false;
-
-            if (type !== 99) { // Le loot est un sprite, on ne le clear() pas comme un Graphics
-                const body = container.getChildAt(0);
-                if (body) {
-                    body.tint = 0xFFFFFF;
-                    if (fxRenderers.has(type)) body.clear();
-                }
+            const body = container.getChildAt(0);
+            if (body) {
+                body.tint = 0xFFFFFF;
+                body.scale.x = 1;
+                if (body instanceof PIXI.AnimatedSprite) body.stop();
+                if (fxRenderers.has(type)) body.clear();
             }
             pools[type].push(container);
         } else {
@@ -88,17 +120,12 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
         }
     }
 
-    let dmgCanvas = document.getElementById('dmg-canvas');
-    if (!dmgCanvas) {
-        dmgCanvas = document.createElement('canvas');
+    const dmgCanvas = document.getElementById('dmg-canvas') || document.createElement('canvas');
+    if (!dmgCanvas.id) {
         dmgCanvas.id = 'dmg-canvas';
         dmgCanvas.width = screenWidth;
         dmgCanvas.height = screenHeight;
-        dmgCanvas.style.cssText = `
-            position: absolute; top: 0; left: 0;
-            width: 100%; height: 100%;
-            pointer-events: none; z-index: 5;
-        `;
+        dmgCanvas.style.cssText = `position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5;`;
         document.getElementById('center-panel').appendChild(dmgCanvas);
     }
     const dmgCtx = dmgCanvas.getContext('2d');
@@ -109,7 +136,6 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
             const eid = entered[i];
             const type = Renderable.type[eid];
             const container = createContainer(world, eid, type);
-            if (type === 0) eyeMap.set(eid, container.getChildAt(1));
             worldContainer.addChild(container);
             spriteMap.set(eid, container);
         }
@@ -122,7 +148,6 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
             if (container) {
                 releaseContainer(container, type);
                 spriteMap.delete(eid);
-                if (eyeMap.has(eid)) eyeMap.delete(eid);
             }
         }
 
@@ -146,9 +171,7 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
             if (enemyRenderers.has(type) || type === 99) {
                 const sx = Position.x[eid] + camera.x;
                 const sy = Position.y[eid] + camera.y;
-                const onScreen = sx > -64 && sx < screenWidth + 64 &&
-                                 sy > -64 && sy < screenHeight + 64;
-                if (!onScreen) {
+                if (sx < -64 || sx > screenWidth + 64 || sy < -64 || sy > screenHeight + 64) {
                     container.visible = false;
                     continue;
                 }
@@ -158,58 +181,64 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
             container.x = Position.x[eid];
             container.y = Position.y[eid];
 
-            // GESTION DU Z-INDEX (TRI DE PROFONDEUR DYNAMIQUE)
             const baseHeight = hasComponent(world, Collider, eid) ? Collider.height[eid] : 32;
-
-            if (type === 99) {
-                container.zIndex = Position.y[eid]; // Butin plaqué au sol derrière les personnages
-            } else if (fxRenderers.has(type)) {
-                container.zIndex = Position.y[eid] + 10000; // Effets visuels (sorts) par-dessus tout
-            } else if (type === 3) {
-                container.zIndex = Position.y[eid] + baseHeight; // Murs
-            } else {
-                container.zIndex = Position.y[eid] + baseHeight; // Joueurs et Ennemis triés selon la position de leurs pieds
-            }
-
-            if (hasComponent(world, Facing, eid)) {
-                const eye = eyeMap.get(eid);
-                if (eye) {
-                    eye.x = 12 + Facing.x[eid] * 12;
-                    eye.y = 12 + Facing.y[eid] * 12;
-                }
-            }
-
-            // RENDU DU LOOT (ID 99)
-            if (type === 99) {
-                const sprite = container.getChildAt(0);
-                const itemData = droppedItems.get(eid);
-
-                if (itemData && itemData.color) {
-                    sprite.tint = parseInt(itemData.color.replace('#', ''), 16);
-                }
-
-                sprite.rotation += delta * 2; // Animation de rotation
-                continue;
-            }
+            if (type === 99) container.zIndex = Position.y[eid];
+            else if (fxRenderers.has(type)) container.zIndex = Position.y[eid] + 10000;
+            else container.zIndex = Position.y[eid] + baseHeight;
 
             const body = container.getChildAt(0);
 
-            // RENDU DES SORTS RESTAURÉ
+            // GESTION DU SPRITE ANIMÉ (4-DIRECTIONS)
+            if (body instanceof PIXI.AnimatedSprite) {
+                const state = State.current[eid];
+                const facingX = Facing.x[eid];
+                const facingY = Facing.y[eid];
+
+                // Calcul de la direction dominante sous forme de chaîne ('up', 'down', 'left', 'right')
+                let dir = 'down';
+                if (Math.abs(facingX) > Math.abs(facingY)) {
+                    dir = facingX > 0 ? 'right' : 'left';
+                } else {
+                    if (facingY < 0) dir = 'up';
+                    else if (facingY > 0) dir = 'down';
+                }
+
+                // Changement d'animation SEULEMENT si l'état ou la direction a changé
+                if (body.currentState !== state || body.currentDir !== dir) {
+                    const newTextures = getAnimTextures(body.animPrefix, state, dir);
+                    if (newTextures.length > 0) {
+                        body.textures = newTextures;
+                        body.play();
+                    }
+                    body.currentState = state;
+                    body.currentDir = dir;
+                }
+
+                // Effet de clignotement rouge sur les dégâts
+                if (hasComponent(world, HitFlash, eid) && HitFlash.timer[eid] > 0) {
+                    body.tint = 0xFF5555;
+                } else {
+                    body.tint = 0xFFFFFF;
+                }
+                continue;
+            }
+
+            // Gestion du Loot et des Effets de Sorts
+            if (type === 99) {
+                const itemData = droppedItems.get(eid);
+                if (itemData && itemData.color) body.tint = parseInt(itemData.color.replace('#', ''), 16);
+                body.rotation += delta * 2;
+                continue;
+            }
+
             const spell = fxRenderers.get(type);
             if (spell?.renderFx) {
                 spell.renderFx(body, eid);
                 continue;
             }
-
-            if (hasComponent(world, HitFlash, eid) && HitFlash.timer[eid] > 0) {
-                body.tint = 0xFFFFFF;
-            } else {
-                if (type === 0) body.tint = 0x0074D9;
-                else if (type === 3) body.tint = 0x555555;
-                else body.tint = 0xFFFFFF;
-            }
         }
 
+        // Rendu des nombres flottants de dégâts
         dmgCtx.clearRect(0, 0, screenWidth, screenHeight);
         for (let i = damageNumbers.length - 1; i >= 0; i--) {
             const dn = damageNumbers[i];
