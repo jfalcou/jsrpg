@@ -17,13 +17,18 @@ import { createInputSystem } from './systems/input.js';
 import { createAiSystem } from './systems/ai.js';
 import { createLifetimeSystem } from './systems/lifetime.js';
 import { createMovementSystem } from './systems/movement.js';
-import { createCombatSystem } from './systems/combat.js';
-import { createSpellSystem } from './systems/spells.js';
+import { createCombatSystem, resetCombat } from './systems/combat.js';
+import { createSpellSystem, resetSpells } from './systems/spells.js';
 import { createRenderSystem } from './systems/render.js';
 import { createUiSystem, getInventorySaveData } from './systems/ui.js';
 import { createLootSystem } from './systems/loot.js';
 
 import { Storage } from './utils/storage.js';
+
+// IMPORTS DE NETTOYAGE (Soft Reset)
+import { resetComponents } from './utils/components.js';
+import { resetPhysics } from './utils/physics.js';
+import { resetCooldowns } from './data/spells/index.js';
 
 const SCREEN_WIDTH  = 1600;
 const SCREEN_HEIGHT = 900;
@@ -31,19 +36,25 @@ const WORLD_WIDTH   = 3000;
 const WORLD_HEIGHT  = 3000;
 const camera = { x: 0, y: 0 };
 
-// SÉQUENCE D'AMORÇAGE (BOOTSTRAP)
+// 1. VARIABLES GLOBALES DE L'APPLICATION
+const app = new PIXI.Application();
+let currentTickerCallback = null;
+
+// 2. SÉQUENCE D'AMORÇAGE (BOOTSTRAP) - Exécutée une seule fois
 async function bootstrap() {
     try {
-        // 1. Charger tous les fichiers JSON
+        await app.init({
+            canvas: document.getElementById('game-canvas'),
+            width: SCREEN_WIDTH,
+            height: SCREEN_HEIGHT,
+            backgroundColor: 0x050505,
+            preference: 'webgpu'
+        });
+
         await loadGameData();
-
-        // 2. Lier la data chargée aux scripts graphiques
         initEnemyRenderers();
-
-        // 3. Activer les menus qui ont désormais accès aux données
         initMenus(startGame);
 
-        // 4. Interface prête : Révéler les boutons
         const loadingIndicator = document.getElementById('loading-indicator');
         const mainMenuButtons = document.getElementById('main-menu-buttons');
         if (loadingIndicator && mainMenuButtons) {
@@ -54,40 +65,46 @@ async function bootstrap() {
         console.error("Échec du démarrage :", e);
         const loadingIndicator = document.getElementById('loading-indicator');
         if (loadingIndicator) {
-            loadingIndicator.innerText = "Erreur critique de la base de données.";
+            loadingIndicator.innerText = "Erreur critique au lancement.";
             loadingIndicator.style.animation = "none";
             loadingIndicator.style.color = "#ff4136";
         }
     }
 }
 
-// Lancement du jeu
 bootstrap();
 
+// 3. LANCEMENT D'UNE PARTIE
 async function startGame(saveData) {
     if (saveData.health < 1) {
         saveData.health = saveData.maxHealth;
     }
 
+    // A. PURGE DE L'ÉTAT PRÉCÉDENT (Soft Reset)
+    resetComponents();
+    resetPhysics();
+    resetSpells();
+    resetCombat();
+    resetCooldowns();
+
+    if (currentTickerCallback) {
+        app.ticker.remove(currentTickerCallback);
+        currentTickerCallback = null;
+    }
+
+    app.stage.removeChildren(); // Vider le canvas PixiJS précédent
+
+    // B. INITIALISATION DE L'INTERFACE HTML
     document.getElementById('screen-main-menu').classList.add('hidden');
     document.getElementById('screen-char-creation').classList.add('hidden');
     document.getElementById('screen-char-select').classList.add('hidden');
     document.getElementById('app-container').classList.remove('hidden');
 
     try {
-        const app = new PIXI.Application();
-        await app.init({
-            canvas: document.getElementById('game-canvas'),
-            width: SCREEN_WIDTH,
-            height: SCREEN_HEIGHT,
-            backgroundColor: 0x050505,
-            preference: 'webgpu'
-        });
-
         const worldContainer = new PIXI.Container();
         app.stage.addChild(worldContainer);
 
-        // Dessin de la grille du sol
+        // Dessin du sol
         const ground = new PIXI.Graphics();
         ground.rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT).fill({ color: 0x111111 });
         for (let i = 0; i <= WORLD_WIDTH; i += 100) {
@@ -96,16 +113,13 @@ async function startGame(saveData) {
         }
         worldContainer.addChild(ground);
 
+        // C. CREATION DE LA LOGIQUE
         const world = createWorld();
         const playerQuery = defineQuery([Player, Health]);
 
-        // Initialisation de l'environnement (Murs et Ennemis)
         loadLevel(world, 'test_level', WORLD_WIDTH, WORLD_HEIGHT);
-
-        // Initialisation du Joueur
         spawnPlayer(world, saveData, WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
 
-        // Initialisation des Systèmes ECS
         const inputSystem    = createInputSystem();
         const aiSystem       = createAiSystem();
         const lifetimeSystem = createLifetimeSystem();
@@ -116,11 +130,10 @@ async function startGame(saveData) {
         const uiSystem       = createUiSystem(saveData);
         const lootSystem     = createLootSystem();
 
-        // Initialisation du gestionnaire de sauvegarde
         const stopSaveManager = initSaveManager(world, saveData);
 
-        // --- BOUCLE PRINCIPALE ---
-        app.ticker.add((ticker) => {
+        // D. DÉFINITION DE LA BOUCLE DE JEU
+        currentTickerCallback = (ticker) => {
             const delta = ticker.deltaMS / 1000;
 
             inputSystem(world, delta);
@@ -133,15 +146,18 @@ async function startGame(saveData) {
             renderSystem(world, delta);
             uiSystem(world);
 
-            // Vérification de Game Over
+            // GESTION DU GAME OVER
             const players = playerQuery(world);
             if (players.length > 0) {
                 const pid = players[0];
 
                 if (Health.current[pid] <= 0) {
-                    app.ticker.stop();
-                    stopSaveManager(); // Arrête l'autosave
+                    // Arrêt propre
+                    app.ticker.remove(currentTickerCallback);
+                    currentTickerCallback = null;
+                    stopSaveManager();
 
+                    // Sauvegarde post-mortem
                     saveData.health = saveData.maxHealth;
                     const invData = getInventorySaveData();
                     saveData.bag = invData.bag;
@@ -149,9 +165,28 @@ async function startGame(saveData) {
                     Storage.save(saveData);
 
                     document.getElementById('game-over').classList.remove('hidden');
+
+                    // ACTION DU BOUTON RESTART
+                    document.getElementById('restart-btn').onclick = () => {
+                        document.getElementById('game-over').classList.add('hidden');
+                        document.getElementById('app-container').classList.add('hidden');
+                        document.getElementById('screen-main-menu').classList.remove('hidden');
+
+                        // Purge de la mémoire GPU de PixiJS pour l'ancien niveau
+                        worldContainer.destroy({ children: true });
+
+                        // Mise à jour du menu selon l'état des sauvegardes
+                        if (Storage.hasSaves()) {
+                            document.getElementById('btn-continue').classList.remove('hidden');
+                        } else {
+                            document.getElementById('btn-continue').classList.add('hidden');
+                        }
+                    };
                 }
             }
-        });
+        };
+
+        app.ticker.add(currentTickerCallback);
 
     } catch (error) {
         console.error("ERREUR FATALE :", error);

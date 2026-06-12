@@ -5,7 +5,7 @@
 import { defineQuery, enterQuery, exitQuery, hasComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
 import { Position, Renderable, Player, Facing, Collider, HitFlash, droppedItems } from '../utils/components.js';
 import { fxRenderers } from '../data/spells/index.js';
-import { enemyRenderers } from '../data/enemies/index.js';
+import { enemyRenderers } from '../data/enemies_index.js';
 import { damageNumbers } from './combat.js';
 
 const renderQuery = defineQuery([Position, Renderable]);
@@ -88,15 +88,19 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
         }
     }
 
-    const dmgCanvas = document.createElement('canvas');
-    dmgCanvas.width = screenWidth;
-    dmgCanvas.height = screenHeight;
-    dmgCanvas.style.cssText = `
-        position: absolute; top: 0; left: 0;
-        width: 100%; height: 100%;
-        pointer-events: none; z-index: 5;
-    `;
-    document.getElementById('center-panel').appendChild(dmgCanvas);
+    let dmgCanvas = document.getElementById('dmg-canvas');
+    if (!dmgCanvas) {
+        dmgCanvas = document.createElement('canvas');
+        dmgCanvas.id = 'dmg-canvas';
+        dmgCanvas.width = screenWidth;
+        dmgCanvas.height = screenHeight;
+        dmgCanvas.style.cssText = `
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none; z-index: 5;
+        `;
+        document.getElementById('center-panel').appendChild(dmgCanvas);
+    }
     const dmgCtx = dmgCanvas.getContext('2d');
 
     return function renderSystem(world, delta) {

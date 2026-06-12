@@ -145,3 +145,7 @@ export function createCombatSystem() {
         return world;
     };
 }
+
+export function resetCombat() {
+    damageNumbers.length = 0;
+}

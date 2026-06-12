@@ -50,3 +50,8 @@ export const Loot = defineComponent();
 // DICTIONNAIRES HORS-ECS
 export const droppedItems = new Map();
 export const enemyTypeMap = new Map();
+
+export function resetComponents() {
+    droppedItems.clear();
+    enemyTypeMap.clear();
+}

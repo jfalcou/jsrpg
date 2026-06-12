@@ -40,3 +40,7 @@ export function createSpellSystem() {
         }
     }
 }
+
+export function resetSpells() {
+    activeSpells.length = 0;
+}

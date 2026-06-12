@@ -81,3 +81,8 @@ export function hasWallBetween(px, py, ex, ey) {
     }
     return false;
 }
+
+export function resetPhysics() {
+    wallHash.clear();
+    wallHashBuilt = false;
+}

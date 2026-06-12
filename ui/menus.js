@@ -39,12 +39,6 @@ export function initMenus(onStartGame) {
         screenMenu.classList.remove('hidden');
     });
 
-    if(restartBtn) restartBtn.addEventListener('click', (e) => {
-        e.target.innerText = "Réveil en cours...";
-        e.target.style.pointerEvents = 'none';
-        location.reload();
-    });
-
     // --- LISTE DES SAUVEGARDES ---
     function renderCharacterList() {
         const listContainer = document.getElementById('char-list');
