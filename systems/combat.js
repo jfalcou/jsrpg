@@ -128,14 +128,25 @@ export function createCombatSystem() {
                     }
                 }
 
-                enemyTypeMap.delete(eid);
-                removeEntity(world, eid);
-
                 if (players.length > 0) {
                     const pid = players[0];
                     PlayerStats.xp[pid] += hasComponent(world, EnemyStats, eid) ? EnemyStats.xpReward[eid] : 25;
-                    // ... (logique level up inchangée)
+
+                    while (PlayerStats.xp[pid] >= PlayerStats.xpToNext[pid]) {
+                        PlayerStats.xp[pid] -= PlayerStats.xpToNext[pid];
+                        PlayerStats.level[pid] += 1;
+
+                        const nextXp = PlayerStats.xpToNext[pid] * 1.5;
+                        PlayerStats.xpToNext[pid] = Math.floor(nextXp / 25) * 25;
+
+                        Health.current[pid] = Health.max[pid]; // Soin complet
+
+                        spawnDamageNumber(Position.x[pid], Position.y[pid] - 20, "NIVEAU SUPÉRIEUR !", "#FFD700", 24);
+                    }
                 }
+
+                enemyTypeMap.delete(eid);
+                removeEntity(world, eid);
             }
         }
         return world;
