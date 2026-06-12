@@ -5,7 +5,7 @@
 import { addEntity, addComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
 import { Position, Collider, Wall, Renderable } from '../utils/components.js';
 import { buildWallHash } from '../utils/physics.js';
-import { spawnEnemy } from '../data/enemies/index.js';
+import { spawnEnemy } from '../data/enemies_index.js';
 
 export function loadLevel(world, levelId, worldWidth, worldHeight) {
     // Note : levelId servira plus tard à charger un fichier JSON spécifique

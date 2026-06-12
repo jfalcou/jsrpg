@@ -1,21 +1,33 @@
 /**
- * @fileoverview Registre et Factory d'instanciation des ennemis.
+ * @fileoverview Instanciation des ennemis et registre des scripts visuels.
  */
-
 import { addEntity, addComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Velocity, Enemy, Renderable, Collider, Health, Knockback, HitFlash, Character, AiTracker, EnemyStats, enemyTypeMap } from '../../utils/components.js';
-import skeleton from './skeleton.js';
+import { Position, Velocity, Enemy, Renderable, Collider, Health, Knockback, HitFlash, Character, AiTracker, EnemyStats, enemyTypeMap } from '../utils/components.js';
+import { GameData } from '../core/dataManager.js';
 
-export const enemyRegistry = {
-    'skeleton': skeleton
+// REGISTRE DES SCRIPTS (La logique graphique qui ne va pas dans le JSON)
+export const enemyScripts = {
+    'skeleton': {
+        setupVisual: function(body) {
+            body.rect(0, 0, 32, 32).fill({ color: 0xDDDDDD });
+            body.stroke({ width: 2, color: 0x888888 });
+            body.rect(6, 6, 6, 6).fill({ color: 0xFF0000 });
+            body.rect(20, 6, 6, 6).fill({ color: 0xFF0000 });
+        }
+    }
 };
 
-export const enemyRenderers = new Map(
-    Object.values(enemyRegistry).map(def => [def.renderType, def])
-);
+export const enemyRenderers = new Map();
+
+// Initialisé par le bootloader une fois les JSON chargés
+export function initEnemyRenderers() {
+    Object.values(GameData.enemies).forEach(def => {
+        enemyRenderers.set(def.renderType, { visuals: enemyScripts[def.id] });
+    });
+}
 
 export function spawnEnemy(world, typeId, x, y) {
-    const def = enemyRegistry[typeId];
+    const def = GameData.enemies[typeId];
     if (!def) throw new Error(`Tentative d'invocation d'un ennemi inconnu : ${typeId}`);
 
     const eid = addEntity(world);

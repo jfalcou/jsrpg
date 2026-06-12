@@ -3,18 +3,9 @@
  */
 
 import { Storage } from '../utils/storage.js';
-import { races, getRace } from '../data/races/index.js';
+import { getRace, getAllRaces } from '../data/races_index.js';
 
 export function initMenus(onStartGame) {
-    // 0. CHARGEMENT TERMINÉ : AFFICHAGE DE L'INTERFACE
-    // Le loader se cache et les boutons s'affichent une fois que le JS a fini d'être lu
-    const loadingIndicator = document.getElementById('loading-indicator');
-    const mainMenuButtons = document.getElementById('main-menu-buttons');
-    if (loadingIndicator && mainMenuButtons) {
-        loadingIndicator.classList.add('hidden');
-        mainMenuButtons.classList.remove('hidden');
-    }
-
     const screenMenu     = document.getElementById('screen-main-menu');
     const screenCreation = document.getElementById('screen-char-creation');
     const screenSelect   = document.getElementById('screen-char-select');
@@ -115,7 +106,8 @@ export function initMenus(onStartGame) {
         const raceSelect = document.getElementById('char-race');
         if(!raceSelect) return;
         raceSelect.innerHTML = '';
-        const all_races = Object.values(races);
+
+        const all_races = getAllRaces();
 
         all_races.forEach(race => {
             const option = document.createElement('option');

@@ -6,8 +6,8 @@
 import { defineQuery, removeEntity, hasComponent, addEntity, addComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
 import { Position, Collider, Enemy, Wall, Health, HitFlash, Player, PlayerStats, EnemyStats, Loot, Renderable, droppedItems, Dash, enemyTypeMap } from '../utils/components.js';
 import { checkAABB } from '../utils/physics.js';
-import { generateItem } from '../data/items/index.js';
-import { enemyRegistry } from '../data/enemies/index.js';
+import { generateItem } from '../data/items_index.js';
+import { GameData } from '../core/dataManager.js';
 
 const enemyQuery = defineQuery([Enemy, Position, Collider, Health]);
 const wallQuery  = defineQuery([Wall, Position, Collider]);
@@ -102,10 +102,10 @@ export function createCombatSystem() {
         for (let j = 0; j < enemies.length; j++) {
             const eid = enemies[j];
 
-            if (Health.current[eid] <= 0) {
+           if (Health.current[eid] <= 0) {
                 const logicalEnemyId = enemyTypeMap.get(eid);
-                const enemyDef = enemyRegistry[logicalEnemyId];
 
+                const enemyDef = GameData.enemies[logicalEnemyId];
                 const lootEntry = resolveLootTable(enemyDef?.lootTable);
 
                 if (lootEntry) {

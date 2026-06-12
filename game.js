@@ -2,6 +2,9 @@
  * @fileoverview Contrôleur Principal du Moteur de Jeu.
  */
 
+import { loadGameData } from './core/dataManager.js';
+import { initEnemyRenderers } from './data/enemies_index.js';
+
 import { initMenus } from './ui/menus.js';
 import { initSaveManager } from './core/saveManager.js';
 import { spawnPlayer } from './core/player.js';
@@ -22,14 +25,44 @@ import { createLootSystem } from './systems/loot.js';
 
 import { Storage } from './utils/storage.js';
 
-// Initialisation des menus avec le callback de démarrage
-initMenus(startGame);
-
 const SCREEN_WIDTH  = 1600;
 const SCREEN_HEIGHT = 900;
 const WORLD_WIDTH   = 3000;
 const WORLD_HEIGHT  = 3000;
 const camera = { x: 0, y: 0 };
+
+// SÉQUENCE D'AMORÇAGE (BOOTSTRAP)
+async function bootstrap() {
+    try {
+        // 1. Charger tous les fichiers JSON
+        await loadGameData();
+
+        // 2. Lier la data chargée aux scripts graphiques
+        initEnemyRenderers();
+
+        // 3. Activer les menus qui ont désormais accès aux données
+        initMenus(startGame);
+
+        // 4. Interface prête : Révéler les boutons
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const mainMenuButtons = document.getElementById('main-menu-buttons');
+        if (loadingIndicator && mainMenuButtons) {
+            loadingIndicator.classList.add('hidden');
+            mainMenuButtons.classList.remove('hidden');
+        }
+    } catch (e) {
+        console.error("Échec du démarrage :", e);
+        const loadingIndicator = document.getElementById('loading-indicator');
+        if (loadingIndicator) {
+            loadingIndicator.innerText = "Erreur critique de la base de données.";
+            loadingIndicator.style.animation = "none";
+            loadingIndicator.style.color = "#ff4136";
+        }
+    }
+}
+
+// Lancement du jeu
+bootstrap();
 
 async function startGame(saveData) {
     if (saveData.health < 1) {

@@ -1,0 +1,29 @@
+[
+    {
+        "id": "short_sword",
+        "name": "Épée Courte",
+        "type": "weapon",
+        "gridWidth": 1,
+        "gridHeight": 2,
+        "color": "#aaaaaa",
+        "stats": { "bonusDps": 5 }
+    },
+    {
+        "id": "health_potion",
+        "name": "Potion de Soin Mineure",
+        "type": "consumable",
+        "gridWidth": 1,
+        "gridHeight": 1,
+        "color": "#ff3333",
+        "stats": {}
+    },
+    {
+        "id": "gold_coin",
+        "name": "Or",
+        "type": "currency",
+        "gridWidth": 1,
+        "gridHeight": 1,
+        "color": "#FFD700",
+        "stats": {}
+    }
+]

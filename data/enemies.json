@@ -1,0 +1,18 @@
+[
+    {
+        "id": "skeleton",
+        "name": "Squelette",
+        "renderType": 10,
+        "stats": { "hp": 100, "speed": 150, "xp": 250, "damage": 5 },
+        "physics": { "width": 32, "height": 32, "knockbackElasticity": 0.85 },
+        "aiProfile": "tracker",
+        "lootTable": {
+            "dropChance": 0.80,
+            "items": [
+                { "id": "health_potion", "weight": 0.50 },
+                { "id": "short_sword", "weight": 0.20 },
+                { "id": "gold_coin", "weight": 0.30, "goldRange": [5, 20] }
+            ]
+        }
+    }
+]
