@@ -1,11 +1,13 @@
+/**
+ * @fileoverview Gestion des événements de glisser-déposer (Drag & Drop).
+ */
+
 import { UI_CONFIG, STEP } from './config.js';
 import { uiState, triggerStatRecalc } from './state.js';
-import { canPlaceInBag } from '../utils/inventory.js';
 
 let draggedState = null;
 let dragOffsetX = 0, dragOffsetY = 0;
 
-// Injection de dépendances pour éviter les imports circulaires
 let placeInBagCallback = null;
 let placeInEquipCallback = null;
 
@@ -15,11 +17,13 @@ export function initDragDropHooks(bagFn, equipFn) {
 }
 
 export function startDrag(e, itemData, div) {
-    if (e.button !== 0) return;
+    if (e.button !== 0) return; // Ignore le clic droit
+    if (draggedState) return;   // Empêche un double drag accidentel
 
     const state = uiState.itemsMap.get(itemData.uid);
-    draggedState = { ...state };
+    draggedState = { ...state }; // Copie de sécurité de l'état initial
 
+    // Nettoyage de la matrice pour éviter d'entrer en collision avec soi-même
     if (state.location === 'bag') {
         for (let r = state.row; r < state.row + itemData.gridHeight; r++) {
             for (let c = state.col; c < state.col + itemData.gridWidth; c++) {
@@ -31,6 +35,7 @@ export function startDrag(e, itemData, div) {
         triggerStatRecalc();
     }
 
+    // Calcul du point d'accroche de la souris sur l'objet
     const rect = div.getBoundingClientRect();
     dragOffsetX = e.clientX - rect.left;
     dragOffsetY = e.clientY - rect.top;
@@ -40,6 +45,7 @@ export function startDrag(e, itemData, div) {
     document.body.appendChild(div);
 
     updateDragPos(e);
+
     document.addEventListener('pointermove', updateDragPos);
     document.addEventListener('pointerup', endDrag);
 }
@@ -54,16 +60,20 @@ function endDrag(e) {
     document.removeEventListener('pointermove', updateDragPos);
     document.removeEventListener('pointerup', endDrag);
 
+    if (!draggedState) return;
+
     const { data: itemData, dom: div } = draggedState;
     div.style.zIndex = 10;
     div.style.cursor = 'grab';
 
+    // Rendre l'objet transparent au clic temporairement pour voir ce qui se cache dessous
     div.style.pointerEvents = 'none';
     const targetElement = document.elementFromPoint(e.clientX, e.clientY);
     div.style.pointerEvents = 'auto';
 
     let dropSuccess = false;
 
+    // 1. TENTATIVE D'ÉQUIPEMENT
     const equipSlot = targetElement ? targetElement.closest('.equip-slot') : null;
     if (equipSlot) {
         const slotId = equipSlot.dataset.slot;
@@ -75,25 +85,43 @@ function endDrag(e) {
         }
     }
 
-    const safeBagContainer = document.querySelector('.inventory-grid');
-    if (!dropSuccess && safeBagContainer) {
-        const bagRect = safeBagContainer.getBoundingClientRect();
-        const itemCenterX = e.clientX - dragOffsetX + (UI_CONFIG.cell / 2);
-        const itemCenterY = e.clientY - dragOffsetY + (UI_CONFIG.cell / 2);
+    // 2. TENTATIVE D'INVENTAIRE (Calcul stricte des bordures)
+    const bagGrid = document.querySelector('.inventory-grid');
+    if (!dropSuccess && bagGrid) {
+        const bagRect = bagGrid.getBoundingClientRect();
+        const ghostRect = div.getBoundingClientRect();
 
-        if (itemCenterX > bagRect.left && itemCenterX < bagRect.right &&
-            itemCenterY > bagRect.top && itemCenterY < bagRect.bottom) {
+        // Calcul relatif du point haut-gauche de l'objet par rapport à la grille d'inventaire
+        const relativeX = ghostRect.left - bagRect.left;
+        const relativeY = ghostRect.top - bagRect.top;
 
-            const dropCol = Math.floor((itemCenterX - bagRect.left) / STEP);
-            const dropRow = Math.floor((itemCenterY - bagRect.top) / STEP);
+        // Arrondi pour magnétiser sur la case la plus proche
+        const col = Math.round(relativeX / STEP);
+        const row = Math.round(relativeY / STEP);
 
-            if (canPlaceInBag(uiState.bagMatrix, UI_CONFIG.bag.width, UI_CONFIG.bag.height, dropCol, dropRow, itemData.gridWidth, itemData.gridHeight)) {
-                if (placeInBagCallback) placeInBagCallback(itemData, dropCol, dropRow);
+        const isValidCol = col >= 0 && (col + itemData.gridWidth) <= UI_CONFIG.bag.width;
+        const isValidRow = row >= 0 && (row + itemData.gridHeight) <= UI_CONFIG.bag.height;
+
+        if (isValidCol && isValidRow) {
+            // Vérification des collisions avec d'autres objets dans la matrice
+            let isFree = true;
+            for (let r = row; r < row + itemData.gridHeight; r++) {
+                for (let c = col; c < col + itemData.gridWidth; c++) {
+                    if (uiState.bagMatrix[r][c] !== null && uiState.bagMatrix[r][c] !== itemData.uid) {
+                        isFree = false;
+                        break;
+                    }
+                }
+            }
+
+            if (isFree) {
+                if (placeInBagCallback) placeInBagCallback(itemData, col, row);
                 dropSuccess = true;
             }
         }
     }
 
+    // 3. RESTAURATION DE SÉCURITÉ SI LE DROP EST INVALIDE
     if (!dropSuccess) {
         if (draggedState.location === 'bag') {
             if (placeInBagCallback) placeInBagCallback(itemData, draggedState.col, draggedState.row);

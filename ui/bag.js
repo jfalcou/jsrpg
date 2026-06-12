@@ -38,23 +38,24 @@ export function initBagDOM() {
     const bagContainer = document.querySelector('.inventory-grid');
     if (!bagContainer) return;
 
-    // FIX : On verrouille totalement la grille pour éviter l'écrasement
-    bagContainer.style.position = 'relative'; // Indispensable pour le top/left des objets
+    bagContainer.style.position = 'relative';
     bagContainer.style.display = 'grid';
-    bagContainer.style.gridTemplateColumns = `repeat(${UI_CONFIG.bag.width}, var(--grid-cell))`;
-    bagContainer.style.gridTemplateRows = `repeat(${UI_CONFIG.bag.height}, var(--grid-cell))`; // Force la hauteur des lignes
-    bagContainer.style.gap = `var(--grid-gap)`;
+    bagContainer.style.gridTemplateColumns = `repeat(${UI_CONFIG.bag.width}, ${UI_CONFIG.cell}px)`;
+    bagContainer.style.gridTemplateRows = `repeat(${UI_CONFIG.bag.height}, ${UI_CONFIG.cell}px)`;
+    bagContainer.style.gap = `${UI_CONFIG.gap}px`;
 
-    // On force la dimension totale du conteneur
-    bagContainer.style.width = `${UI_CONFIG.bag.width * STEP}px`;
-    bagContainer.style.height = `${UI_CONFIG.bag.height * STEP}px`;
+    // FIX : Calcul de la taille EXACTE du conteneur
+    const exactWidth = UI_CONFIG.bag.width * UI_CONFIG.cell + (UI_CONFIG.bag.width - 1) * UI_CONFIG.gap;
+    const exactHeight = UI_CONFIG.bag.height * UI_CONFIG.cell + (UI_CONFIG.bag.height - 1) * UI_CONFIG.gap;
+    bagContainer.style.width = `${exactWidth}px`;
+    bagContainer.style.height = `${exactHeight}px`;
+
     bagContainer.style.margin = '0 auto';
     bagContainer.style.padding = '0';
     bagContainer.innerHTML = '';
 
     for (let i = 0; i < UI_CONFIG.bag.width * UI_CONFIG.bag.height; i++) {
         const cell = document.createElement('div');
-        // Remplacement de la classe par des styles explicites pour garantir le visuel
         cell.style.width = '100%';
         cell.style.height = '100%';
         cell.style.backgroundColor = '#1a1a1a';
