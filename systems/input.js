@@ -11,7 +11,7 @@ const keys = {};
 window.addEventListener('keydown', e => keys[e.code] = true);
 window.addEventListener('keyup', e => keys[e.code] = false);
 
-// Requête mise à jour pour s'assurer que le joueur possède le composant Attributes
+// Requête pour s'assurer que le joueur possède tous les composants nécessaires
 const playerQuery = defineQuery([Player, Position, Velocity, Facing, Dash, Attributes]);
 
 export function createInputSystem() {
@@ -21,30 +21,50 @@ export function createInputSystem() {
     const spellKeysDown = new Set();
 
     return function inputSystem(world, delta) {
+        // OPTIMISATION : Les cooldowns des sorts tournent indépendamment du joueur.
+        // On le met en dehors de la boucle pour éviter de "double-tick" s'il y a plusieurs joueurs,
+        // ou de figer le temps si le joueur meurt.
+        tickCooldowns(delta);
+
         const entities = playerQuery(world);
 
         for (let i = 0; i < entities.length; i++) {
             const eid = entities[i];
 
-            // 1. COOLDOWNS
-            tickCooldowns(delta);
-
-            // ====================================================================
-            // CORRECTIF : LECTURE DYNAMIQUE DE LA VITESSE DEPUIS L'ECS
-            // ====================================================================
             const SPEED = Attributes.speed[eid] || 240; // Fallback de sécurité à 240px/s
             const DASH_SPEED = SPEED * 3.5;
 
-            // 2. DASH
-            if (Dash.active[eid] === 1) {
-                Dash.timer[eid] -= delta;
-                if (Dash.timer[eid] <= 0) Dash.active[eid] = 0;
-            }
             const dashPressed = keys['KeyE'] || keys['ControlLeft'];
             if (!dashPressed) {
                 canDash = true;
             }
 
+            // ====================================================================
+            // 1. GESTION DU DASH EN COURS (STATE ENFORCEMENT)
+            // ====================================================================
+            if (Dash.active[eid] === 1) {
+                Dash.timer[eid] -= delta;
+
+                if (Dash.timer[eid] <= 0) {
+                    Dash.active[eid] = 0;
+                    // FIX : Fin stricte du dash, on remet la vélocité à 0 pour
+                    // éviter une frame de glissade fantôme.
+                    Velocity.x[eid] = 0;
+                    Velocity.y[eid] = 0;
+                } else {
+                    // FIX CRITIQUE : Il FAUT forcer la vélocité à chaque frame pendant le dash.
+                    // Sans ça, la moindre micro-résolution physique annulera silencieusement le dash.
+                    Velocity.x[eid] = Dash.dirX[eid] * Dash.speed[eid];
+                    Velocity.y[eid] = Dash.dirY[eid] * Dash.speed[eid];
+
+                    // On skip la suite de la boucle : on ne peut ni marcher ni caster pendant un dash.
+                    continue;
+                }
+            }
+
+            // ====================================================================
+            // 2. MOUVEMENT NORMAL ET INITIATION DU DASH
+            // ====================================================================
             if (Dash.active[eid] === 0) {
                 let moveX = 0;
                 let moveY = 0;
@@ -54,41 +74,48 @@ export function createInputSystem() {
                 if (keys['KeyA'] || keys['ArrowLeft'] || keys['KeyQ']) moveX -= 1;
                 if (keys['KeyD'] || keys['ArrowRight']) moveX += 1;
 
+                // Normalisation pour les diagonales
                 if (moveX !== 0 && moveY !== 0) {
                     const length = Math.sqrt(moveX * moveX + moveY * moveY);
                     moveX /= length;
                     moveY /= length;
                 }
 
-                Velocity.x[eid] = moveX * SPEED;
-                Velocity.y[eid] = moveY * SPEED;
-
+                // Sauvegarde de l'orientation
                 if (moveX !== 0 || moveY !== 0) {
                     Facing.x[eid] = moveX;
                     Facing.y[eid] = moveY;
                 }
 
+                Velocity.x[eid] = moveX * SPEED;
+                Velocity.y[eid] = moveY * SPEED;
+
+                // DÉCLENCHEMENT DU DASH
                 if (dashPressed && canDash) {
                     Dash.active[eid] = 1;
                     Dash.timer[eid] = DASH_DURATION;
                     Dash.speed[eid] = DASH_SPEED;
                     canDash = false;
 
+                    // Direction du dash
                     if (moveX !== 0 || moveY !== 0) {
-                        const dist = Math.sqrt(moveX * moveX + moveY * moveY);
-                        Dash.dirX[eid] = moveX / dist;
-                        Dash.dirY[eid] = moveY / dist;
+                        Dash.dirX[eid] = moveX;
+                        Dash.dirY[eid] = moveY;
                     } else {
                         Dash.dirX[eid] = Facing.x[eid];
                         Dash.dirY[eid] = Facing.y[eid];
                     }
+
                     Velocity.x[eid] = Dash.dirX[eid] * Dash.speed[eid];
                     Velocity.y[eid] = Dash.dirY[eid] * Dash.speed[eid];
-                }
-            }
 
-            // 3. SORTS (épée sur Espace + tous les autres)
-            if (Dash.active[eid] === 0) {
+                    // Le joueur vient de s'élancer, on ignore la lecture des sorts pour cette frame
+                    continue;
+                }
+
+                // ====================================================================
+                // 3. SORTS
+                // ====================================================================
                 for (const entry of equippedSpells) {
                     if (keys[entry.key]) {
                         if (!spellKeysDown.has(entry.key) && entry.cooldownRemaining <= 0) {

@@ -6,6 +6,7 @@ import { createWorld, addEntity, addComponent, defineQuery } from 'https://cdn.j
 import { Position, Velocity, Player, Enemy, Renderable, Facing, Collider, Wall, Dash, Health, Knockback, HitFlash, PlayerStats, Character, Attributes, BaseAttributes } from './utils/components.js';
 import { createInputSystem } from './systems/input.js';
 import { createAiSystem } from './systems/ai.js';
+import { createLifetimeSystem } from './systems/lifetime.js'; // INTÉGRATION DU NOUVEAU SYSTÈME
 import { createMovementSystem } from './systems/movement.js';
 import { createCombatSystem } from './systems/combat.js';
 import { createSpellSystem } from './systems/spells.js';
@@ -29,13 +30,14 @@ const btnContinue    = document.getElementById('btn-continue');
 const btnNew         = document.getElementById('btn-new');
 const btnBackToMain  = document.getElementById('btn-back-to-main');
 
-btnContinue.addEventListener('click', () => {
+// FIX : Utilisation de pointerdown pour une réactivité instantanée
+btnContinue.addEventListener('pointerdown', () => {
     screenMenu.classList.add('hidden');
     screenSelect.classList.remove('hidden');
     renderCharacterList();
 });
 
-btnBackToMain.addEventListener('click', () => {
+btnBackToMain.addEventListener('pointerdown', () => {
     screenSelect.classList.add('hidden');
     screenMenu.classList.remove('hidden');
 });
@@ -56,12 +58,12 @@ function renderCharacterList() {
             <button class="btn-delete-char" data-id="${save.id}">Delete</button>
         `;
 
-        card.addEventListener('click', (e) => {
+        card.addEventListener('pointerdown', (e) => {
             if (e.target.classList.contains('btn-delete-char')) return;
             startGame(save);
         });
 
-        card.querySelector('.btn-delete-char').addEventListener('click', () => {
+        card.querySelector('.btn-delete-char').addEventListener('pointerdown', () => {
             if (confirm(`Are you sure you want to send ${save.name} to oblivion?`)) {
                 Storage.delete(save.id);
                 renderCharacterList();
@@ -77,7 +79,7 @@ function renderCharacterList() {
     });
 }
 
-btnNew.addEventListener('click', () => {
+btnNew.addEventListener('pointerdown', () => {
     screenMenu.classList.add('hidden');
     screenCreation.classList.remove('hidden');
     resetCreationUI();
@@ -155,20 +157,20 @@ document.getElementById('char-race').addEventListener('change', () => {
 });
 
 ['str', 'dex', 'vit', 'ene'].forEach(stat => {
-    document.getElementById(`add-${stat}`).addEventListener('click', () => {
+    document.getElementById(`add-${stat}`).addEventListener('pointerdown', () => {
         if (ptsLeft > 0) { curAttr[stat]++; ptsLeft--; updateCreationUI(); }
     });
-    document.getElementById(`sub-${stat}`).addEventListener('click', () => {
+    document.getElementById(`sub-${stat}`).addEventListener('pointerdown', () => {
         if (curAttr[stat] > baseAttr[stat]) { curAttr[stat]--; ptsLeft++; updateCreationUI(); }
     });
 });
 
-document.getElementById('btn-cancel').addEventListener('click', () => {
+document.getElementById('btn-cancel').addEventListener('pointerdown', () => {
     screenCreation.classList.add('hidden');
     screenMenu.classList.remove('hidden');
 });
 
-document.getElementById('btn-start').addEventListener('click', () => {
+document.getElementById('btn-start').addEventListener('pointerdown', () => {
     const name     = document.getElementById('char-name').value || "Anonymous Champion";
     const raceId   = document.getElementById('char-race').value;
     const raceData = getRace(raceId);
@@ -194,7 +196,7 @@ document.getElementById('btn-start').addEventListener('click', () => {
     startGame(newSave);
 });
 
-document.getElementById('restart-btn').addEventListener('click', () => location.reload());
+document.getElementById('restart-btn').addEventListener('pointerdown', () => location.reload());
 
 // ============================================================================
 // 2. MOTEUR DE JEU
@@ -318,6 +320,7 @@ async function startGame(saveData) {
 
         const inputSystem    = createInputSystem();
         const aiSystem       = createAiSystem();
+        const lifetimeSystem = createLifetimeSystem(); // On active le gestionnaire de mort temporaire
         const movementSystem = createMovementSystem(WORLD_WIDTH, WORLD_HEIGHT);
         const combatSystem   = createCombatSystem();
         const spellSystem    = createSpellSystem();
@@ -329,22 +332,19 @@ async function startGame(saveData) {
         // NOUVEAU : SYSTÈME DE SAUVEGARDE MANUELLE INTÉGRÉ AU PANNEAU GAUCHE
         // ====================================================================
 
-        // On essaie de cibler intelligemment le panneau de gauche via les stats
-        const statStrElement = document.getElementById('ui-str');
+        const statStrElement = document.getElementById('stat-str');
         let leftPanel = document.getElementById('left-panel') || document.querySelector('.left-panel');
 
         if (!leftPanel && statStrElement) {
-            // Si on ne trouve pas l'ID explicite, on remonte le DOM
             leftPanel = statStrElement.closest('.panel') || statStrElement.parentElement.parentElement;
         }
 
-        // 1. Notification visuelle RPG dorée (fini le vert fluo)
         let notifElement = document.getElementById('save-notif');
         if (!notifElement) {
             notifElement = document.createElement('div');
             notifElement.id = 'save-notif';
             notifElement.innerHTML = '<i>Partie Sauvegardée</i>';
-            notifElement.style.color = '#d4af37'; // Doré parchemin
+            notifElement.style.color = '#d4af37';
             notifElement.style.fontFamily = '"Uncial Antiqua", cursive';
             notifElement.style.fontSize = '14px';
             notifElement.style.textAlign = 'center';
@@ -365,12 +365,11 @@ async function startGame(saveData) {
             }
         }
 
-        // 2. Bouton de sauvegarde manuel avec icône parchemin
         let manualSaveBtn = document.getElementById('manual-save-btn');
         if (!manualSaveBtn) {
             manualSaveBtn = document.createElement('button');
             manualSaveBtn.id = 'manual-save-btn';
-            manualSaveBtn.innerHTML = '📜 Sauvegarder'; // Icône parchemin demandée
+            manualSaveBtn.innerHTML = '📜 Sauvegarder';
             manualSaveBtn.style.padding = '10px 15px';
             manualSaveBtn.style.backgroundColor = '#111';
             manualSaveBtn.style.color = '#d4af37';
@@ -393,7 +392,7 @@ async function startGame(saveData) {
                 manualSaveBtn.style.boxShadow = 'none';
             });
 
-            manualSaveBtn.addEventListener('click', () => {
+            manualSaveBtn.addEventListener('pointerdown', () => {
                 saveProgress(true);
             });
 
@@ -455,6 +454,7 @@ async function startGame(saveData) {
 
             inputSystem(world, delta);
             aiSystem(world, delta);
+            lifetimeSystem(world, delta); // On purge les projectiles et FX expirés
             movementSystem(world, delta);
             spellSystem(world, delta);
             combatSystem(world, delta);

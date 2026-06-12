@@ -3,7 +3,8 @@
  */
 
 import { defineQuery, removeEntity, hasComponent, addEntity, addComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Collider, Enemy, Wall, Health, HitFlash, Player, PlayerStats, EnemyStats, Loot, Renderable, droppedItems } from '../utils/components.js';
+// AJOUT : Import du composant Dash pour lire l'état d'esquive
+import { Position, Collider, Enemy, Wall, Health, HitFlash, Player, PlayerStats, EnemyStats, Loot, Renderable, droppedItems, Dash } from '../utils/components.js';
 import { buildWallHash, checkAABB } from '../utils/physics.js';
 import { generateItem } from '../items/index.js';
 
@@ -36,14 +37,20 @@ export function createCombatSystem() {
         const playerBodies = playerBodyQuery(world);
         if (playerBodies.length > 0) {
             const pid = playerBodies[0];
-            for (let i = 0; i < enemies.length; i++) {
-                const eid = enemies[i];
-                if (checkAABB(Position.x[pid], Position.y[pid], Collider.width[pid], Collider.height[pid], Position.x[eid], Position.y[eid], Collider.width[eid], Collider.height[eid])) {
-                    const dps = hasComponent(world, EnemyStats, eid) ? EnemyStats.damage[eid] : 10;
-                    Health.current[pid] -= dps * delta;
+
+            // AJOUT : Vérification de l'état d'invincibilité (i-frames) pendant le dash
+            const isInvincible = hasComponent(world, Dash, pid) && Dash.active[pid] === 1;
+
+            if (!isInvincible) {
+                for (let i = 0; i < enemies.length; i++) {
+                    const eid = enemies[i];
+                    if (checkAABB(Position.x[pid], Position.y[pid], Collider.width[pid], Collider.height[pid], Position.x[eid], Position.y[eid], Collider.width[eid], Collider.height[eid])) {
+                        const dps = hasComponent(world, EnemyStats, eid) ? EnemyStats.damage[eid] : 10;
+                        Health.current[pid] -= dps * delta;
+                    }
                 }
+                if (Health.current[pid] < 0) Health.current[pid] = 0;
             }
-            if (Health.current[pid] < 0) Health.current[pid] = 0;
         }
 
         for (let j = 0; j < enemies.length; j++) {
