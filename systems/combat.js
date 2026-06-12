@@ -3,7 +3,6 @@
  */
 
 import { defineQuery, removeEntity, hasComponent, addEntity, addComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-// AJOUT : Import du composant Dash pour lire l'état d'esquive
 import { Position, Collider, Enemy, Wall, Health, HitFlash, Player, PlayerStats, EnemyStats, Loot, Renderable, droppedItems, Dash } from '../utils/components.js';
 import { buildWallHash, checkAABB } from '../utils/physics.js';
 import { generateItem } from '../items/index.js';
@@ -15,6 +14,12 @@ const playerBodyQuery = defineQuery([Player, Position, Collider, Health]);
 const hitFlashQuery = defineQuery([HitFlash]);
 
 export const damageNumbers = [];
+
+// Remplacement statique par une fonction de loot table abstraite pour les futures configurations
+function rollLootType() {
+    const pool = ['short_sword', 'health_potion'];
+    return pool[Math.floor(Math.random() * pool.length)];
+}
 
 export function spawnDamageNumber(x, y, damage, color = '#ffffff', fontSize = 18) {
     const displayVal = typeof damage === 'string' ? damage : Math.floor(damage);
@@ -38,7 +43,8 @@ export function createCombatSystem() {
         if (playerBodies.length > 0) {
             const pid = playerBodies[0];
 
-            // AJOUT : Vérification de l'état d'invincibilité (i-frames) pendant le dash
+            // CORRECTION : Le mode divin est désactivé !
+            // On s'assure que l'invincibilité n'est vraie que pendant l'action du dash.
             const isInvincible = hasComponent(world, Dash, pid) && Dash.active[pid] === 1;
 
             if (!isInvincible) {
@@ -86,8 +92,9 @@ export function createCombatSystem() {
                     }
 
                     if (inWall) {
-                        dropX = Position.x[eid];
-                        dropY = Position.y[eid];
+                        // Évite l'empilement au pixel près en ajoutant un bruit de dispersion
+                        dropX = Position.x[eid] + (Math.random() * 16 - 8);
+                        dropY = Position.y[eid] + (Math.random() * 16 - 8);
                     }
 
                     Position.x[dropEid] = dropX;
@@ -97,8 +104,7 @@ export function createCombatSystem() {
                     Renderable.type[dropEid] = 99;
 
                     try {
-                        const pool = ['short_sword', 'health_potion'];
-                        const randomBase = pool[Math.floor(Math.random() * pool.length)];
+                        const randomBase = rollLootType();
                         const itemInstance = generateItem(randomBase);
                         droppedItems.set(dropEid, itemInstance);
                     } catch (err) {
