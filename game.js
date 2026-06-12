@@ -10,8 +10,8 @@ import { createMovementSystem } from './systems/movement.js';
 import { createCombatSystem } from './systems/combat.js';
 import { createSpellSystem } from './systems/spells.js';
 import { createRenderSystem } from './systems/render.js';
-import { createUiSystem } from './systems/ui.js';
-import { createLootSystem } from './systems/loot.js'; // NOUVEAU
+import { createUiSystem, getInventorySaveData } from './systems/ui.js';
+import { createLootSystem } from './systems/loot.js';
 import { buildWallHash } from './utils/physics.js';
 import { Storage } from './utils/storage.js';
 import { races, getRace } from './races/index.js';
@@ -58,7 +58,6 @@ function renderCharacterList() {
 
         card.addEventListener('click', (e) => {
             if (e.target.classList.contains('btn-delete-char')) return;
-            if (save.health <= 0) save.health = save.maxHealth;
             startGame(save);
         });
 
@@ -187,6 +186,8 @@ document.getElementById('btn-start').addEventListener('click', () => {
         maxHealth: raceData.baseStats.hp,
         mp: raceData.baseStats.mp,
         maxMp: raceData.baseStats.mp,
+        bag: [],
+        equipment: {}
     };
 
     Storage.save(newSave);
@@ -206,6 +207,10 @@ const WORLD_HEIGHT  = 3000;
 const camera = { x: 0, y: 0 };
 
 async function startGame(saveData) {
+    if (saveData.health < 1) {
+        saveData.health = saveData.maxHealth;
+    }
+
     screenMenu.classList.add('hidden');
     screenCreation.classList.add('hidden');
     screenSelect.classList.add('hidden');
@@ -253,7 +258,6 @@ async function startGame(saveData) {
         createWall(WORLD_WIDTH / 2 - 200, WORLD_HEIGHT / 2 - 100, 40, 240);
         buildWallHash(world);
 
-        // --- Le Héros ---
         const hero = addEntity(world);
         addComponent(world, Player, hero);
         addComponent(world, Position, hero);
@@ -265,7 +269,6 @@ async function startGame(saveData) {
         addComponent(world, Character, hero);
         addComponent(world, Health, hero);
         addComponent(world, PlayerStats, hero);
-
         addComponent(world, BaseAttributes, hero);
         addComponent(world, Attributes, hero);
 
@@ -288,18 +291,7 @@ async function startGame(saveData) {
         BaseAttributes.divineRes[hero]  = 0;
         BaseAttributes.darkRes[hero]    = 0;
 
-        Attributes.strength[hero]   = saveData.attributes.str;
-        Attributes.dexterity[hero]  = saveData.attributes.dex;
-        Attributes.vitality[hero]   = saveData.attributes.vit;
-        Attributes.energy[hero]     = saveData.attributes.ene;
-        Attributes.armor[hero]      = 50;
-        Attributes.speed[hero]      = 240;
-        Attributes.fireRes[hero]    = 10;
-        Attributes.coldRes[hero]    = 5;
-        Attributes.poisonRes[hero]  = 0;
-        Attributes.divineRes[hero]  = 0;
-        Attributes.darkRes[hero]    = 0;
-        Attributes.bonusDps[hero]   = 0;
+        Attributes.speed[hero] = 240;
 
         Position.x[hero]      = WORLD_WIDTH / 2;
         Position.y[hero]      = WORLD_HEIGHT / 2;
@@ -314,7 +306,6 @@ async function startGame(saveData) {
         Dash.speed[hero]      = 0;
         Renderable.type[hero] = 0;
 
-        // --- La Horde ---
         for (let i = 0; i < 70; i++) {
             let ex, ey;
             do {
@@ -332,14 +323,107 @@ async function startGame(saveData) {
         const spellSystem    = createSpellSystem();
         const renderSystem   = createRenderSystem(app, worldContainer, camera, SCREEN_WIDTH, SCREEN_HEIGHT);
         const uiSystem       = createUiSystem(saveData);
-
-        // NOUVEAU : Initialisation du système de butin
         const lootSystem     = createLootSystem();
 
-        function saveProgress() {
+        // ====================================================================
+        // NOUVEAU : SYSTÈME DE SAUVEGARDE MANUELLE INTÉGRÉ AU PANNEAU GAUCHE
+        // ====================================================================
+
+        // On essaie de cibler intelligemment le panneau de gauche via les stats
+        const statStrElement = document.getElementById('ui-str');
+        let leftPanel = document.getElementById('left-panel') || document.querySelector('.left-panel');
+
+        if (!leftPanel && statStrElement) {
+            // Si on ne trouve pas l'ID explicite, on remonte le DOM
+            leftPanel = statStrElement.closest('.panel') || statStrElement.parentElement.parentElement;
+        }
+
+        // 1. Notification visuelle RPG dorée (fini le vert fluo)
+        let notifElement = document.getElementById('save-notif');
+        if (!notifElement) {
+            notifElement = document.createElement('div');
+            notifElement.id = 'save-notif';
+            notifElement.innerHTML = '<i>Partie Sauvegardée</i>';
+            notifElement.style.color = '#d4af37'; // Doré parchemin
+            notifElement.style.fontFamily = '"Uncial Antiqua", cursive';
+            notifElement.style.fontSize = '14px';
+            notifElement.style.textAlign = 'center';
+            notifElement.style.textShadow = '1px 1px 3px #000';
+            notifElement.style.opacity = '0';
+            notifElement.style.transform = 'translateY(10px)';
+            notifElement.style.transition = 'all 0.4s ease';
+            notifElement.style.pointerEvents = 'none';
+            notifElement.style.paddingTop = '20px';
+
+            if (leftPanel) {
+                leftPanel.appendChild(notifElement);
+            } else {
+                notifElement.style.position = 'absolute';
+                notifElement.style.bottom = '70px';
+                notifElement.style.left = '20px';
+                appContainer.appendChild(notifElement);
+            }
+        }
+
+        // 2. Bouton de sauvegarde manuel avec icône parchemin
+        let manualSaveBtn = document.getElementById('manual-save-btn');
+        if (!manualSaveBtn) {
+            manualSaveBtn = document.createElement('button');
+            manualSaveBtn.id = 'manual-save-btn';
+            manualSaveBtn.innerHTML = '📜 Sauvegarder'; // Icône parchemin demandée
+            manualSaveBtn.style.padding = '10px 15px';
+            manualSaveBtn.style.backgroundColor = '#111';
+            manualSaveBtn.style.color = '#d4af37';
+            manualSaveBtn.style.border = '1px solid #d4af37';
+            manualSaveBtn.style.fontFamily = '"Uncial Antiqua", cursive';
+            manualSaveBtn.style.fontSize = '16px';
+            manualSaveBtn.style.cursor = 'pointer';
+            manualSaveBtn.style.transition = 'all 0.2s ease-in-out';
+            manualSaveBtn.style.zIndex = '1000';
+            manualSaveBtn.style.width = '100%';
+            manualSaveBtn.style.boxSizing = 'border-box';
+            manualSaveBtn.style.marginTop = '10px';
+
+            manualSaveBtn.addEventListener('mouseenter', () => {
+                manualSaveBtn.style.backgroundColor = '#222';
+                manualSaveBtn.style.boxShadow = '0 0 10px rgba(212, 175, 55, 0.3)';
+            });
+            manualSaveBtn.addEventListener('mouseleave', () => {
+                manualSaveBtn.style.backgroundColor = '#111';
+                manualSaveBtn.style.boxShadow = 'none';
+            });
+
+            manualSaveBtn.addEventListener('click', () => {
+                saveProgress(true);
+            });
+
+            if (leftPanel) {
+                leftPanel.appendChild(manualSaveBtn);
+            } else {
+                manualSaveBtn.style.position = 'absolute';
+                manualSaveBtn.style.bottom = '20px';
+                manualSaveBtn.style.left = '20px';
+                manualSaveBtn.style.width = 'auto';
+                appContainer.appendChild(manualSaveBtn);
+            }
+        }
+
+        function showSaveNotification() {
+            notifElement.style.opacity = '1';
+            notifElement.style.transform = 'translateY(0)';
+            setTimeout(() => {
+                notifElement.style.opacity = '0';
+                notifElement.style.transform = 'translateY(10px)';
+            }, 2000);
+        }
+
+        function saveProgress(isManual = false) {
             const players = playerQuery(world);
             if (players.length > 0) {
                 const pid = players[0];
+
+                if (Health.current[pid] <= 0) return;
+
                 saveData.health       = Health.current[pid];
                 saveData.maxHealth    = Health.max[pid];
                 saveData.level        = PlayerStats.level[pid];
@@ -351,12 +435,20 @@ async function startGame(saveData) {
                 saveData.attributes.vit = BaseAttributes.vitality[pid];
                 saveData.attributes.ene = BaseAttributes.energy[pid];
 
+                const invData = getInventorySaveData();
+                saveData.bag = invData.bag;
+                saveData.equipment = invData.equipment;
+
                 Storage.save(saveData);
+
+                if (isManual) {
+                    showSaveNotification();
+                }
             }
         }
 
-        const autoSaveInterval = setInterval(saveProgress, 5000);
-        window.addEventListener('beforeunload', saveProgress);
+        const autoSaveInterval = setInterval(() => saveProgress(false), 5000);
+        window.addEventListener('beforeunload', () => saveProgress(false));
 
         app.ticker.add((ticker) => {
             const delta = ticker.deltaMS / 1000;
@@ -366,20 +458,25 @@ async function startGame(saveData) {
             movementSystem(world, delta);
             spellSystem(world, delta);
             combatSystem(world, delta);
-
-            // NOUVEAU : Appel du système de loot (Pas besoin de delta, ce sont des collisions pures)
             lootSystem(world);
-
             renderSystem(world, delta);
             uiSystem(world);
 
             const players = playerQuery(world);
             if (players.length > 0) {
                 const pid = players[0];
+
                 if (Health.current[pid] <= 0) {
                     app.ticker.stop();
                     clearInterval(autoSaveInterval);
-                    window.removeEventListener('beforeunload', saveProgress);
+                    window.removeEventListener('beforeunload', () => saveProgress(false));
+
+                    saveData.health = saveData.maxHealth;
+                    const invData = getInventorySaveData();
+                    saveData.bag = invData.bag;
+                    saveData.equipment = invData.equipment;
+                    Storage.save(saveData);
+
                     document.getElementById('game-over').classList.remove('hidden');
                 }
             }

@@ -16,7 +16,8 @@ const hitFlashQuery = defineQuery([HitFlash]);
 export const damageNumbers = [];
 
 export function spawnDamageNumber(x, y, damage, color = '#ffffff', fontSize = 18) {
-    damageNumbers.push({ x, y, damage: Math.floor(damage), color, fontSize, alpha: 1.0, vy: -80, timer: 0.8 });
+    const displayVal = typeof damage === 'string' ? damage : Math.floor(damage);
+    damageNumbers.push({ x, y, damage: displayVal, color, fontSize, alpha: 1.0, vy: -80, timer: 0.8 });
 }
 
 export function createCombatSystem() {
@@ -49,10 +50,10 @@ export function createCombatSystem() {
             const eid = enemies[j];
 
             if (Health.current[eid] <= 0) {
-                let xpGain = hasComponent(world, EnemyStats, eid) ? EnemyStats.xpReward[eid] : 0;
+                let xpGain = hasComponent(world, EnemyStats, eid) ? EnemyStats.xpReward[eid] : 25;
 
                 // ==========================================================
-                // DROPS AU SOL AVEC ANTI-COLLISION MURALE (80% drop rate)
+                // DROPS AU SOL
                 // ==========================================================
                 if (Math.random() < 0.80) {
                     const dropEid = addEntity(world);
@@ -67,18 +68,16 @@ export function createCombatSystem() {
                     let dropX = Position.x[eid] + Math.cos(angle) * distance;
                     let dropY = Position.y[eid] + Math.sin(angle) * distance;
 
-                    // FIX : On vérifie si la zone d'impact prévue tape un mur
                     let inWall = false;
                     const walls = wallQuery(world);
                     for (let w = 0; w < walls.length; w++) {
                         const wid = walls[w];
-                        if (checkAABB(dropX, dropY, 16, 16, Position.x[wid], Position.y[wid], Collider.width[wid], Collider.height[wid])) {
+                        if (checkAABB(dropX, dropY, 20, 20, Position.x[wid], Position.y[wid], Collider.width[wid], Collider.height[wid])) {
                             inWall = true;
                             break;
                         }
                     }
 
-                    // Si l'objet tombe dans un mur, on le remet en sécurité là où le monstre est mort
                     if (inWall) {
                         dropX = Position.x[eid];
                         dropY = Position.y[eid];
@@ -86,29 +85,40 @@ export function createCombatSystem() {
 
                     Position.x[dropEid] = dropX;
                     Position.y[dropEid] = dropY;
+                    Collider.width[dropEid] = 20;
+                    Collider.height[dropEid] = 20;
+                    Renderable.type[dropEid] = 99;
 
-                    Collider.width[dropEid] = 16;
-                    Collider.height[dropEid] = 16;
-                    Renderable.type[dropEid] = 99; // L'ID 99 n'écrase plus l'attaque de l'épée !
-
-                    const pool = ['short_sword', 'health_potion'];
-                    const randomBase = pool[Math.floor(Math.random() * pool.length)];
-                    const itemInstance = generateItem(randomBase);
-
-                    droppedItems.set(dropEid, itemInstance);
+                    try {
+                        const pool = ['short_sword', 'health_potion'];
+                        const randomBase = pool[Math.floor(Math.random() * pool.length)];
+                        const itemInstance = generateItem(randomBase);
+                        droppedItems.set(dropEid, itemInstance);
+                    } catch (err) {
+                        console.error("Erreur critique de génération du butin :", err);
+                        removeEntity(world, dropEid);
+                    }
                 }
 
                 removeEntity(world, eid);
 
+                // ==========================================================
+                // LOGIQUE DE LEVEL UP
+                // ==========================================================
                 if (players.length > 0) {
                     const pid = players[0];
                     PlayerStats.xp[pid] += xpGain;
 
-                    if (PlayerStats.xp[pid] >= PlayerStats.xpToNext[pid]) {
+                    while (PlayerStats.xp[pid] >= PlayerStats.xpToNext[pid]) {
                         PlayerStats.xp[pid] -= PlayerStats.xpToNext[pid];
                         PlayerStats.level[pid] += 1;
-                        PlayerStats.xpToNext[pid] *= 1.5;
-                        Health.current[pid] = Health.max[pid];
+
+                        const nextXp = PlayerStats.xpToNext[pid] * 1.5;
+                        PlayerStats.xpToNext[pid] = Math.floor(nextXp / 25) * 25;
+
+                        Health.current[pid] = Health.max[pid]; // Soin complet
+
+                        spawnDamageNumber(Position.x[pid], Position.y[pid] - 20, "NIVEAU SUPÉRIEUR !", "#FFD700", 24);
                     }
                 }
             }

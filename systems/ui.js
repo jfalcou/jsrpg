@@ -1,10 +1,11 @@
 /**
- * @fileoverview Système gérant le HUD, l'Inventaire (Matrice 2D), le Drag & Drop et la Barre d'Action.
+ * @fileoverview Système gérant le HUD, l'Inventaire, le Drag & Drop et la Barre d'Action.
  */
 
 import { defineQuery } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
 import { Player, Health, PlayerStats, Attributes, BaseAttributes } from '../utils/components.js';
 import { equippedSpells } from '../spells/index.js';
+import { canPlaceInBag, findEmptySpot, applyStatsCalculation } from '../utils/inventory.js';
 
 // ============================================================================
 // 1. CONFIGURATION ET ÉTAT DE L'INVENTAIRE EN MÉMOIRE
@@ -37,105 +38,42 @@ let itemsMap = new Map();
 
 let currentWorld = null;
 let currentPlayerId = null;
+let needsStatRecalc = true;
+
+// SÉRIALISATION POUR LA SAUVEGARDE
+export function getInventorySaveData() {
+    const bagItems = [];
+    itemsMap.forEach((state, uid) => {
+        if (state.location === 'bag') {
+            bagItems.push({ data: state.data, col: state.col, row: state.row });
+        }
+    });
+    return { bag: bagItems, equipment: equipmentState };
+}
 
 // ============================================================================
 // 2. MOTEUR MATHÉMATIQUE (MATRICE 2D & STATISTIQUES)
 // ============================================================================
 
 export function attemptPickup(itemData) {
-    for (let r = 0; r <= UI_CONFIG.bag.height - itemData.gridHeight; r++) {
-        for (let c = 0; c <= UI_CONFIG.bag.width - itemData.gridWidth; c++) {
-            if (canPlaceInBag(c, r, itemData.gridWidth, itemData.gridHeight)) {
-                placeItemInBag(itemData, c, r);
-                return true;
-            }
-        }
+    if (!itemData || itemData.gridWidth === undefined) return false;
+
+    const spot = findEmptySpot(bagMatrix, UI_CONFIG.bag.width, UI_CONFIG.bag.height, itemData.gridWidth, itemData.gridHeight);
+
+    if (spot) {
+        placeItemInBag(itemData, spot.col, spot.row);
+        return true;
     }
     return false;
 }
 
-function canPlaceInBag(col, row, w, h) {
-    if (col < 0 || row < 0 || col + w > UI_CONFIG.bag.width || row + h > UI_CONFIG.bag.height) return false;
-    for (let r = row; r < row + h; r++) {
-        for (let c = col; c < col + w; c++) {
-            if (bagMatrix[r][c] !== null) return false;
-        }
-    }
-    return true;
-}
-
 function recalculatePlayerStats() {
-    if (!currentWorld || currentPlayerId === null) return;
-
-    const statsList = ['strength', 'dexterity', 'vitality', 'energy', 'armor', 'speed', 'fireRes', 'coldRes', 'poisonRes', 'divineRes', 'darkRes'];
-    statsList.forEach(stat => {
-        Attributes[stat][currentPlayerId] = BaseAttributes[stat][currentPlayerId];
-    });
-    Attributes.bonusDps[currentPlayerId] = 0;
-
-    for (const slotId in equipmentState) {
-        const item = equipmentState[slotId];
-        if (item && item.stats) {
-            for (const statName in item.stats) {
-                if (Attributes[statName] !== undefined) {
-                    Attributes[statName][currentPlayerId] += item.stats[statName];
-                }
-            }
-        }
-    }
+    needsStatRecalc = true;
 }
 
 // ============================================================================
 // 3. MOTEUR DOM : INVENTAIRE ET DRAG & DROP
 // ============================================================================
-
-const bagContainer = document.querySelector('.inventory-grid');
-const equipContainer = document.querySelector('.equipment');
-
-if (bagContainer && equipContainer) {
-    bagContainer.style.padding = '0';
-    bagContainer.style.position = 'relative';
-    bagContainer.style.display = 'grid';
-    bagContainer.style.gridTemplateColumns = `repeat(${UI_CONFIG.bag.width}, ${UI_CONFIG.cell}px)`;
-    bagContainer.style.gap = `${UI_CONFIG.gap}px`;
-    bagContainer.style.width = `${UI_CONFIG.bag.width * STEP}px`;
-    bagContainer.style.margin = '0 auto';
-    bagContainer.innerHTML = '';
-
-    for (let i = 0; i < UI_CONFIG.bag.width * UI_CONFIG.bag.height; i++) {
-        const cell = document.createElement('div');
-        cell.style.width = '100%'; cell.style.height = '100%';
-        cell.style.backgroundColor = '#1a1a1a'; cell.style.border = '1px solid #333';
-        bagContainer.appendChild(cell);
-    }
-
-    equipContainer.style.position = 'relative';
-    equipContainer.style.display = 'grid';
-    equipContainer.style.gridTemplateColumns = `repeat(3, ${UI_CONFIG.cell}px)`;
-    equipContainer.style.gridTemplateRows = `repeat(5, ${UI_CONFIG.cell}px)`;
-    equipContainer.style.gap = `${UI_CONFIG.gap}px`;
-    equipContainer.style.width = `${3 * STEP}px`;
-    equipContainer.style.margin = '0 auto';
-    equipContainer.style.justifyContent = 'center';
-    equipContainer.innerHTML = '';
-
-    UI_CONFIG.equipment.forEach(eq => {
-        const slot = document.createElement('div');
-        slot.className = 'equip-slot';
-        slot.dataset.slot = eq.id;
-        slot.dataset.type = eq.id === 'ring1' || eq.id === 'ring2' ? 'ring' : eq.id;
-
-        slot.style.boxSizing = 'border-box';
-        slot.style.position = 'relative';
-        slot.style.gridColumn = `${eq.col} / span ${eq.w}`;
-        slot.style.gridRow = `${eq.row} / span ${eq.h}`;
-        slot.style.backgroundColor = '#111';
-        slot.style.border = '2px solid #444';
-
-        slot.innerHTML = `<span style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color:#555; font-size:12px; text-transform:uppercase; z-index:1; pointer-events:none; margin:0; padding:0;">${eq.label}</span>`;
-        equipContainer.appendChild(slot);
-    });
-}
 
 function createItemDOM(itemData) {
     const div = document.createElement('div');
@@ -143,7 +81,7 @@ function createItemDOM(itemData) {
     div.style.position = 'absolute';
     div.style.width = `${itemData.gridWidth * UI_CONFIG.cell + (itemData.gridWidth - 1) * UI_CONFIG.gap}px`;
     div.style.height = `${itemData.gridHeight * UI_CONFIG.cell + (itemData.gridHeight - 1) * UI_CONFIG.gap}px`;
-    div.style.backgroundColor = itemData.color;
+    div.style.backgroundColor = itemData.color || '#ff00ff';
     div.style.border = '2px solid #d4af37';
     div.style.cursor = 'grab';
     div.style.boxSizing = 'border-box';
@@ -163,8 +101,9 @@ function placeItemInBag(itemData, col, row) {
     let state = itemsMap.get(itemData.uid);
     let div = state ? state.dom : createItemDOM(itemData);
 
-    if (bagContainer) {
-        bagContainer.appendChild(div);
+    const safeBagContainer = document.querySelector('.inventory-grid');
+    if (safeBagContainer) {
+        safeBagContainer.appendChild(div);
         div.style.left = `${col * STEP}px`;
         div.style.top = `${row * STEP}px`;
     }
@@ -178,8 +117,9 @@ function placeItemInEquip(itemData, slotId) {
     let state = itemsMap.get(itemData.uid);
     let div = state ? state.dom : createItemDOM(itemData);
 
-    if (equipContainer) {
-        const targetSlot = equipContainer.querySelector(`[data-slot="${slotId}"]`);
+    const safeEquipContainer = document.querySelector('.equipment');
+    if (safeEquipContainer) {
+        const targetSlot = safeEquipContainer.querySelector(`[data-slot="${slotId}"]`);
         if (targetSlot) {
             targetSlot.appendChild(div);
             div.style.left = '-2px';
@@ -218,7 +158,6 @@ function startDrag(e, itemData, div) {
     document.body.appendChild(div);
 
     updateDragPos(e);
-
     document.addEventListener('pointermove', updateDragPos);
     document.addEventListener('pointerup', endDrag);
 }
@@ -254,8 +193,9 @@ function endDrag(e) {
         }
     }
 
-    if (!dropSuccess && bagContainer) {
-        const bagRect = bagContainer.getBoundingClientRect();
+    const safeBagContainer = document.querySelector('.inventory-grid');
+    if (!dropSuccess && safeBagContainer) {
+        const bagRect = safeBagContainer.getBoundingClientRect();
         const itemCenterX = e.clientX - dragOffsetX + (UI_CONFIG.cell / 2);
         const itemCenterY = e.clientY - dragOffsetY + (UI_CONFIG.cell / 2);
 
@@ -265,7 +205,7 @@ function endDrag(e) {
             const dropCol = Math.floor((itemCenterX - bagRect.left) / STEP);
             const dropRow = Math.floor((itemCenterY - bagRect.top) / STEP);
 
-            if (canPlaceInBag(dropCol, dropRow, itemData.gridWidth, itemData.gridHeight)) {
+            if (canPlaceInBag(bagMatrix, UI_CONFIG.bag.width, UI_CONFIG.bag.height, dropCol, dropRow, itemData.gridWidth, itemData.gridHeight)) {
                 placeItemInBag(itemData, dropCol, dropRow);
                 dropSuccess = true;
             }
@@ -284,58 +224,122 @@ function endDrag(e) {
 }
 
 // ============================================================================
-// 4. MOTEUR DOM : INITIALISATION BARRE D'ACTION (SORTS)
-// ============================================================================
-// ============================================================================
-// 4. MOTEUR DOM : INITIALISATION BARRE D'ACTION (SORTS)
-// ============================================================================
-
-const actionBar = document.querySelector('.action-bar');
-if (actionBar && actionBar.children.length === 0) {
-    equippedSpells.forEach((entry, index) => {
-        const slot = document.createElement('div');
-        slot.className = 'action-slot';
-        slot.style.position = 'relative';
-        slot.style.width = '60px';
-        slot.style.height = '60px';
-
-        slot.style.borderRadius = '50%';
-        slot.style.overflow = 'hidden';
-        slot.style.border = '3px solid #555';
-        slot.style.backgroundColor = '#111';
-        slot.style.boxShadow = '0 4px 6px rgba(0,0,0,0.5)';
-
-        // Lecture STRICTE là où se trouve ta donnée
-        const iconStr = entry.spell.iconEmoji || '';
-
-        slot.innerHTML = `
-            <div class="slot-key" style="position:absolute; top:4px; left:50%; transform:translateX(-50%); font-weight:bold; color:white; z-index:4; text-shadow: 1px 1px 2px black; font-size: 14px;">
-                ${entry.key.replace('Key', '').replace('Digit', '')}
-            </div>
-
-            <div style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size: 28px; background: radial-gradient(circle, #333 0%, #111 80%); z-index:1;">
-                ${iconStr}
-            </div>
-
-            <div class="cooldown-overlay" style="position:absolute; bottom:0; left:0; width:100%; background:rgba(0,0,0,0.7); height:0%; transition: height 0.1s linear; z-index: 3;"></div>
-        `;
-        actionBar.appendChild(slot);
-    });
-}
-
-// ============================================================================
-// 5. BOUCLE DE MISE À JOUR (Santé, XP, Stats, Cooldowns)
+// 4. MOTEUR DOM : INITIALISATION DE L'INTERFACE DE JEU
 // ============================================================================
 
 const playerQuery = defineQuery([Player, Health, PlayerStats, Attributes]);
 
 export function createUiSystem(saveData) {
-    const hpText = document.getElementById('ui-hp-text');
-    const hpBar = document.getElementById('ui-hp-bar');
-    const xpText = document.querySelector('.xp-text');
-    const xpBar = document.getElementById('ui-xp-bar');
-    const lvlText = document.getElementById('ui-level');
+    // -------------------------------------------------------------
+    // FIX : Mise à jour stricte des textes fixes selon l'index.html
+    // -------------------------------------------------------------
+    const elName = document.getElementById('ui-char-name-title');
+    if (elName && saveData.name) elName.innerText = saveData.name;
 
+    const elRace = document.getElementById('ui-char-race');
+    if (elRace && saveData.race) elRace.innerText = saveData.race;
+
+    const elGold = document.querySelector('.gold-counter span');
+    if (elGold) elGold.innerText = 'Or: 0'; // Remise à zéro de l'or codé en dur dans le HTML
+    // -------------------------------------------------------------
+
+    const bagContainer = document.querySelector('.inventory-grid');
+    const equipContainer = document.querySelector('.equipment');
+    const actionBar = document.getElementById('action-bar');
+
+    document.querySelectorAll('.inventory-item').forEach(el => el.remove());
+    bagMatrix = Array(UI_CONFIG.bag.height).fill(null).map(() => Array(UI_CONFIG.bag.width).fill(null));
+    equipmentState = {};
+    UI_CONFIG.equipment.forEach(eq => equipmentState[eq.id] = null);
+    itemsMap.clear();
+
+    if (bagContainer && equipContainer) {
+        bagContainer.style.padding = '0';
+        bagContainer.style.position = 'relative';
+        bagContainer.style.display = 'grid';
+        bagContainer.style.gridTemplateColumns = `repeat(${UI_CONFIG.bag.width}, ${UI_CONFIG.cell}px)`;
+        bagContainer.style.gap = `${UI_CONFIG.gap}px`;
+        bagContainer.style.width = `${UI_CONFIG.bag.width * STEP}px`;
+        bagContainer.style.margin = '0 auto';
+        bagContainer.innerHTML = '';
+
+        for (let i = 0; i < UI_CONFIG.bag.width * UI_CONFIG.bag.height; i++) {
+            const cell = document.createElement('div');
+            cell.style.width = '100%'; cell.style.height = '100%';
+            cell.style.backgroundColor = '#1a1a1a'; cell.style.border = '1px solid #333';
+            bagContainer.appendChild(cell);
+        }
+
+        equipContainer.style.position = 'relative';
+        equipContainer.style.display = 'grid';
+        equipContainer.style.gridTemplateColumns = `repeat(3, ${UI_CONFIG.cell}px)`;
+        equipContainer.style.gridTemplateRows = `repeat(5, ${UI_CONFIG.cell}px)`;
+        equipContainer.style.gap = `${UI_CONFIG.gap}px`;
+        equipContainer.style.width = `${3 * STEP}px`;
+        equipContainer.style.margin = '0 auto';
+        equipContainer.style.justifyContent = 'center';
+        equipContainer.innerHTML = '';
+
+        UI_CONFIG.equipment.forEach(eq => {
+            const slot = document.createElement('div');
+            slot.className = 'equip-slot';
+            slot.dataset.slot = eq.id;
+            slot.dataset.type = eq.id === 'ring1' || eq.id === 'ring2' ? 'ring' : eq.id;
+
+            slot.style.boxSizing = 'border-box';
+            slot.style.position = 'relative';
+            slot.style.gridColumn = `${eq.col} / span ${eq.w}`;
+            slot.style.gridRow = `${eq.row} / span ${eq.h}`;
+            slot.style.backgroundColor = '#111';
+            slot.style.border = '2px solid #444';
+
+            slot.innerHTML = `<span style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color:#555; font-size:12px; text-transform:uppercase; z-index:1; pointer-events:none; margin:0; padding:0;">${eq.label}</span>`;
+            equipContainer.appendChild(slot);
+        });
+    }
+
+    if (actionBar) {
+        actionBar.innerHTML = '';
+        equippedSpells.forEach((entry) => {
+            const slot = document.createElement('div');
+            slot.className = 'action-slot';
+            slot.style.position = 'relative';
+            slot.style.width = '60px';
+            slot.style.height = '60px';
+
+            slot.style.borderRadius = '50%';
+            slot.style.overflow = 'hidden';
+            slot.style.border = '3px solid #555';
+            slot.style.backgroundColor = '#111';
+            slot.style.boxShadow = '0 4px 6px rgba(0,0,0,0.5)';
+
+            const iconStr = entry.spell.iconEmoji || '';
+
+            slot.innerHTML = `
+                <div class="slot-key" style="position:absolute; top:4px; left:50%; transform:translateX(-50%); font-weight:bold; color:white; z-index:4; text-shadow: 1px 1px 2px black; font-size: 14px;">
+                    ${entry.key.replace('Key', '').replace('Digit', '')}
+                </div>
+                <div style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size: 28px; background: radial-gradient(circle, #333 0%, #111 80%); z-index:1;">
+                    ${iconStr}
+                </div>
+                <div class="cooldown-overlay" style="position:absolute; bottom:0; left:0; width:100%; background:rgba(0,0,0,0.7); height:0%; transition: height 0.1s linear; z-index: 3;"></div>
+            `;
+            actionBar.appendChild(slot);
+        });
+    }
+
+    if (saveData && saveData.bag) {
+        saveData.bag.forEach(item => placeItemInBag(item.data, item.col, item.row));
+    }
+    if (saveData && saveData.equipment) {
+        for (const slotId in saveData.equipment) {
+            if (saveData.equipment[slotId]) placeItemInEquip(saveData.equipment[slotId], slotId);
+        }
+    }
+
+    // ========================================================================
+    // BOUCLE UI : Ciblage chirurgical au cœur de l'index.html
+    // ========================================================================
     return function uiSystem(world) {
         currentWorld = world;
         const players = playerQuery(world);
@@ -344,33 +348,46 @@ export function createUiSystem(saveData) {
         const pid = players[0];
         currentPlayerId = pid;
 
-        // HUD Vital
+        if (needsStatRecalc) {
+            applyStatsCalculation(currentPlayerId, equipmentState, Attributes, BaseAttributes);
+            needsStatRecalc = false;
+        }
+
         const hp = Math.floor(Health.current[pid]);
         const maxHp = Math.floor(Health.max[pid]);
-        if (hpText) hpText.innerText = `${hp} / ${maxHp}`;
-        if (hpBar) hpBar.style.height = `${(hp / maxHp) * 100}%`;
 
-        // HUD XP
+        const elHpText = document.getElementById('ui-hp-text');
+        const elHpBar = document.getElementById('ui-hp-bar');
+        if (elHpText) elHpText.innerText = `${hp} / ${maxHp}`;
+        if (elHpBar) elHpBar.style.height = `${(hp / maxHp) * 100}%`;
+
+        // L'XP trouve enfin le bon conteneur !
         const xp = Math.floor(PlayerStats.xp[pid]);
         const xpToNext = Math.floor(PlayerStats.xpToNext[pid]);
-        const level = PlayerStats.level[pid];
-        if (xpText) xpText.innerText = `${xp} / ${xpToNext}`;
-        if (xpBar) xpBar.style.width = `${(xp / xpToNext) * 100}%`;
-        if (lvlText) lvlText.innerText = level;
 
-        // Stats
-        const strText = document.getElementById('stat-str');
+        const elXpText = document.getElementById('ui-xp-text');
+        const elXpBar = document.getElementById('ui-xp-bar');
+        if (elXpText) elXpText.innerText = `${xp} / ${xpToNext}`;
+        if (elXpBar) elXpBar.style.width = `${Math.max(0, Math.min(100, (xp / xpToNext) * 100))}%`;
+
+        // Le Niveau trouve enfin son ID unique
+        const level = PlayerStats.level[pid];
+        const elLevel = document.getElementById('ui-lvl');
+        if (elLevel) elLevel.innerText = level;
+
+        // Les statistiques
+        const strText = document.getElementById('ui-str');
         if (strText) strText.innerText = Math.floor(Attributes.strength[pid]);
-        const dexText = document.getElementById('stat-dex');
+        const dexText = document.getElementById('ui-dex');
         if (dexText) dexText.innerText = Math.floor(Attributes.dexterity[pid]);
-        const vitText = document.getElementById('stat-vit');
+        const vitText = document.getElementById('ui-vit');
         if (vitText) vitText.innerText = Math.floor(Attributes.vitality[pid]);
-        const eneText = document.getElementById('stat-ene');
+        const eneText = document.getElementById('ui-ene');
         if (eneText) eneText.innerText = Math.floor(Attributes.energy[pid]);
-        const armText = document.getElementById('stat-arm');
+        const armText = document.getElementById('ui-armor');
         if (armText) armText.innerText = Math.floor(Attributes.armor[pid]);
 
-        // Cooldowns
+        // La barre de sort (animée)
         if (actionBar) {
             const overlays = actionBar.querySelectorAll('.cooldown-overlay');
             equippedSpells.forEach((entry, index) => {
