@@ -38,19 +38,28 @@ export function initBagDOM() {
     const bagContainer = document.querySelector('.inventory-grid');
     if (!bagContainer) return;
 
-    bagContainer.style.padding = '0';
-    bagContainer.style.position = 'relative';
+    // FIX : On verrouille totalement la grille pour éviter l'écrasement
+    bagContainer.style.position = 'relative'; // Indispensable pour le top/left des objets
     bagContainer.style.display = 'grid';
-    bagContainer.style.gridTemplateColumns = `repeat(${UI_CONFIG.bag.width}, ${UI_CONFIG.cell}px)`;
-    bagContainer.style.gap = `${UI_CONFIG.gap}px`;
+    bagContainer.style.gridTemplateColumns = `repeat(${UI_CONFIG.bag.width}, var(--grid-cell))`;
+    bagContainer.style.gridTemplateRows = `repeat(${UI_CONFIG.bag.height}, var(--grid-cell))`; // Force la hauteur des lignes
+    bagContainer.style.gap = `var(--grid-gap)`;
+
+    // On force la dimension totale du conteneur
     bagContainer.style.width = `${UI_CONFIG.bag.width * STEP}px`;
+    bagContainer.style.height = `${UI_CONFIG.bag.height * STEP}px`;
     bagContainer.style.margin = '0 auto';
+    bagContainer.style.padding = '0';
     bagContainer.innerHTML = '';
 
     for (let i = 0; i < UI_CONFIG.bag.width * UI_CONFIG.bag.height; i++) {
         const cell = document.createElement('div');
-        cell.style.width = '100%'; cell.style.height = '100%';
-        cell.style.backgroundColor = '#1a1a1a'; cell.style.border = '1px solid #333';
+        // Remplacement de la classe par des styles explicites pour garantir le visuel
+        cell.style.width = '100%';
+        cell.style.height = '100%';
+        cell.style.backgroundColor = '#1a1a1a';
+        cell.style.border = '1px solid #333';
+        cell.style.boxSizing = 'border-box';
         bagContainer.appendChild(cell);
     }
 }
