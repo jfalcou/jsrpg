@@ -3,14 +3,13 @@
  */
 
 import { defineQuery, removeEntity } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Collider, Player, Loot, droppedItems } from '../utils/components.js';
+import { Position, Collider, Player, Loot, droppedItems, PlayerStats } from '../utils/components.js';
 import { checkAABB } from '../utils/physics.js';
 import { attemptPickup } from './ui.js';
+import { spawnDamageNumber } from './combat.js'; // Pour afficher un retour visuel
 
 const playerQuery = defineQuery([Player, Position, Collider]);
 const lootQuery = defineQuery([Loot, Position, Collider]);
-
-// NOUVEAU : Un dictionnaire pour mémoriser l'heure exacte où l'objet est tombé
 const dropTimes = new Map();
 
 export function createLootSystem() {
@@ -25,12 +24,10 @@ export function createLootSystem() {
         for (let i = 0; i < loots.length; i++) {
             const lid = loots[i];
 
-            // Enregistre l'heure d'apparition de l'objet s'il est nouveau
             if (!dropTimes.has(lid)) {
                 dropTimes.set(lid, now);
             }
 
-            // FIX MAJEUR : L'objet est intouchable pendant 0.8 seconde pour empêcher l'aspirateur
             if (now - dropTimes.get(lid) < 800) {
                 continue;
             }
@@ -41,7 +38,17 @@ export function createLootSystem() {
             )) {
                 const itemData = droppedItems.get(lid);
 
-                if (attemptPickup(itemData)) {
+                // INTERCEPTION : Si c'est de la monnaie, on l'ajoute directement aux stats
+                if (itemData && itemData.type === 'currency') {
+                    PlayerStats.gold[pid] += itemData.amount;
+                    spawnDamageNumber(Position.x[pid], Position.y[pid] - 30, `+${itemData.amount} Or`, '#FFD700', 22);
+
+                    droppedItems.delete(lid);
+                    dropTimes.delete(lid);
+                    removeEntity(world, lid);
+                }
+                // Sinon, c'est un objet classique pour le sac
+                else if (attemptPickup(itemData)) {
                     droppedItems.delete(lid);
                     dropTimes.delete(lid);
                     removeEntity(world, lid);

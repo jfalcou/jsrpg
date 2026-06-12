@@ -3,7 +3,7 @@
  */
 
 import { defineQuery } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Player } from '../utils/components.js';
+import { Player, PlayerStats } from '../utils/components.js'; // Ajout de PlayerStats
 import { uiState, resetUIState, getInventorySaveData } from '../ui/state.js';
 import { initBagDOM, placeItemInBag, attemptPickup } from '../ui/bag.js';
 import { initEquipDOM, placeItemInEquip } from '../ui/equipment.js';
@@ -22,21 +22,18 @@ export function createUiSystem(saveData) {
     if (elRace && saveData.race) elRace.innerText = saveData.race;
 
     const elGold = document.querySelector('.gold-counter span');
-    if (elGold) elGold.innerText = 'Or: 0';
+    if (elGold) elGold.innerText = `Or: ${saveData.gold || 0}`;
 
     document.querySelectorAll('.inventory-item').forEach(el => el.remove());
 
-    // 1. Initialisation de l'état global et du DOM
     resetUIState();
     initBagDOM();
     initEquipDOM();
     initHudCache();
     initActionBar();
 
-    // 2. Connexion du Drag&Drop pour éviter les imports circulaires
     initDragDropHooks(placeItemInBag, placeItemInEquip);
 
-    // 3. Chargement de la sauvegarde
     if (saveData && saveData.bag) {
         saveData.bag.forEach(item => placeItemInBag(item.data, item.col, item.row));
     }
@@ -46,7 +43,6 @@ export function createUiSystem(saveData) {
         }
     }
 
-    // 4. Retour de la boucle système ECS
     return function uiSystem(world) {
         const players = playerQuery(world);
         if (players.length === 0) return world;
@@ -55,6 +51,11 @@ export function createUiSystem(saveData) {
         uiState.currentPlayerId = pid;
 
         updateHud(pid);
+
+        // NOUVEAU : Mise à jour du compteur d'or
+        if (elGold) {
+            elGold.innerText = `Or: ${PlayerStats.gold[pid] || 0}`;
+        }
 
         return world;
     };

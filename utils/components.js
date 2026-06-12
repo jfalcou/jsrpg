@@ -14,7 +14,9 @@ export const Health = defineComponent({ current: Types.f32, max: Types.f32 });
 export const Knockback = defineComponent({ x: Types.f32, y: Types.f32, elasticity: Types.f32 });
 export const HitFlash = defineComponent({ timer: Types.f32 });
 export const Lifetime = defineComponent({ timer: Types.f32 });
-export const PlayerStats = defineComponent({ xp: Types.f32, xpToNext: Types.f32, level: Types.ui32 });
+
+// AJOUT : 'gold' pour stocker la monnaie du joueur
+export const PlayerStats = defineComponent({ xp: Types.f32, xpToNext: Types.f32, level: Types.ui32, gold: Types.ui32 });
 
 export const PlayerCooldowns = defineComponent({ aoe: Types.f32 });
 export const NovaFx = defineComponent({ radius: Types.f32, alpha: Types.f32 });

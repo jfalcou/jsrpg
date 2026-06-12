@@ -5,38 +5,26 @@
 export default {
     id: 'skeleton',
     name: 'Squelette',
-    renderType: 10, // ID unique pour le pool de rendu PixiJS
-    stats: {
-        hp: 100,
-        speed: 150,
-        xp: 250,
-        damage: 5
-    },
-    physics: {
-        width: 32,
-        height: 32,
-        knockbackElasticity: 0.85
-    },
+    renderType: 10,
+    stats: { hp: 100, speed: 150, xp: 250, damage: 5 },
+    physics: { width: 32, height: 32, knockbackElasticity: 0.85 },
     visuals: {
-        // Cette fonction est appelée UNE SEULE FOIS par render.js lors de la création du conteneur
         setupVisual: function(body) {
-            // Un carré de base gris osseux
             body.rect(0, 0, 32, 32).fill({ color: 0xDDDDDD });
             body.stroke({ width: 2, color: 0x888888 });
-
-            // Ajout de petits yeux rouges menaçants directement dans le body
-            body.rect(6, 6, 6, 6).fill({ color: 0xFF0000 }); // Oeil gauche
-            body.rect(20, 6, 6, 6).fill({ color: 0xFF0000 }); // Oeil droit
+            body.rect(6, 6, 6, 6).fill({ color: 0xFF0000 });
+            body.rect(20, 6, 6, 6).fill({ color: 0xFF0000 });
         }
     },
     aiProfile: 'tracker',
 
-    // Table de butin avec des probabilités homogènes (décimales)
+    // NOUVEAU : L'or est dans la table de loot.
     lootTable: {
-        dropChance: 0.70, // 70% de chance d'obtenir un objet
+        dropChance: 0.80, // 80% de chance de dropper quelque chose
         items: [
-            { id: 'health_potion', weight: 0.65 }, // 65% de chances relatives
-            { id: 'short_sword', weight: 0.35 }    // 35% de chances relatives
+            { id: 'health_potion', weight: 0.50 },
+            { id: 'short_sword', weight: 0.20 },
+            { id: 'gold_coin', weight: 0.30, goldRange: [5, 20] } // 30% de chance d'or
         ]
     }
 };

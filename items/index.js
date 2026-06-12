@@ -4,11 +4,12 @@
 
 import short_sword from './short_sword.js';
 import health_potion from './health_potion.js';
+import gold_coin from './gold_coin.js';
 
-// Le registre global (dictionnaire)
 export const itemRegistry = {
     'short_sword': short_sword,
-    'health_potion': health_potion
+    'health_potion': health_potion,
+    'gold_coin': gold_coin
 };
 
 let itemCounter = 0; // Compteur pour garantir l'unicité absolue des UIDs
@@ -24,16 +25,14 @@ export function generateItem(baseId) {
 
     itemCounter++;
 
-    // On retourne une "photocopie" indépendante avec un UID pour la matrice 2D et le DOM HTML
     return {
-        uid: `item_${Date.now()}_${itemCounter}`, // Ex: 'item_167882912_1'
+        uid: `item_${Date.now()}_${itemCounter}`,
         baseId: base.id,
         name: base.name,
         type: base.type,
         gridWidth: base.gridWidth,
         gridHeight: base.gridHeight,
         color: base.color,
-        // On clone profondément les stats pour que chaque objet ait ses propres valeurs
         stats: { ...base.stats }
     };
 }

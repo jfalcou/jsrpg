@@ -6,7 +6,7 @@ import { createWorld, addEntity, addComponent, defineQuery } from 'https://cdn.j
 import { Position, Velocity, Player, Enemy, Renderable, Facing, Collider, Wall, Dash, Health, Knockback, HitFlash, PlayerStats, Character, Attributes, BaseAttributes } from './utils/components.js';
 import { createInputSystem } from './systems/input.js';
 import { createAiSystem } from './systems/ai.js';
-import { createLifetimeSystem } from './systems/lifetime.js'; // INTÉGRATION DU NOUVEAU SYSTÈME
+import { createLifetimeSystem } from './systems/lifetime.js';
 import { createMovementSystem } from './systems/movement.js';
 import { createCombatSystem } from './systems/combat.js';
 import { createSpellSystem } from './systems/spells.js';
@@ -18,10 +18,6 @@ import { Storage } from './utils/storage.js';
 import { races, getRace } from './races/index.js';
 import { spawnEnemy } from './enemies/index.js';
 
-// ============================================================================
-// 1. GESTION DES MENUS & ETATS
-// ============================================================================
-
 const screenMenu     = document.getElementById('screen-main-menu');
 const screenCreation = document.getElementById('screen-char-creation');
 const screenSelect   = document.getElementById('screen-char-select');
@@ -30,7 +26,6 @@ const btnContinue    = document.getElementById('btn-continue');
 const btnNew         = document.getElementById('btn-new');
 const btnBackToMain  = document.getElementById('btn-back-to-main');
 
-// FIX : Utilisation de pointerdown pour une réactivité instantanée
 btnContinue.addEventListener('pointerdown', () => {
     screenMenu.classList.add('hidden');
     screenSelect.classList.remove('hidden');
@@ -118,7 +113,6 @@ function resetCreationUI() {
 
     raceSelect.addEventListener('change', () => {
         const selectedRace = getRace(raceSelect.value);
-
         if (selectedRace) {
             raceDescription.classList.add('fade-out');
             setTimeout(() => {
@@ -183,6 +177,7 @@ document.getElementById('btn-start').addEventListener('pointerdown', () => {
         level: 1,
         xp: 0,
         xpToNext: 1000,
+        gold: 0, // INITIALISATION DE L'OR
         attributes: { ...curAttr },
         health: raceData.baseStats.hp,
         maxHealth: raceData.baseStats.hp,
@@ -197,10 +192,6 @@ document.getElementById('btn-start').addEventListener('pointerdown', () => {
 });
 
 document.getElementById('restart-btn').addEventListener('pointerdown', () => location.reload());
-
-// ============================================================================
-// 2. MOTEUR DE JEU
-// ============================================================================
 
 const SCREEN_WIDTH  = 1600;
 const SCREEN_HEIGHT = 900;
@@ -280,6 +271,7 @@ async function startGame(saveData) {
         PlayerStats.level[hero]     = saveData.level;
         PlayerStats.xp[hero]        = saveData.xp;
         PlayerStats.xpToNext[hero]  = saveData.xpToNext;
+        PlayerStats.gold[hero]      = saveData.gold || 0; // CHARGEMENT DE L'OR
 
         BaseAttributes.strength[hero]   = saveData.attributes.str;
         BaseAttributes.dexterity[hero]  = saveData.attributes.dex;
@@ -320,17 +312,13 @@ async function startGame(saveData) {
 
         const inputSystem    = createInputSystem();
         const aiSystem       = createAiSystem();
-        const lifetimeSystem = createLifetimeSystem(); // On active le gestionnaire de mort temporaire
+        const lifetimeSystem = createLifetimeSystem();
         const movementSystem = createMovementSystem(WORLD_WIDTH, WORLD_HEIGHT);
         const combatSystem   = createCombatSystem();
         const spellSystem    = createSpellSystem();
         const renderSystem   = createRenderSystem(app, worldContainer, camera, SCREEN_WIDTH, SCREEN_HEIGHT);
         const uiSystem       = createUiSystem(saveData);
         const lootSystem     = createLootSystem();
-
-        // ====================================================================
-        // NOUVEAU : SYSTÈME DE SAUVEGARDE MANUELLE INTÉGRÉ AU PANNEAU GAUCHE
-        // ====================================================================
 
         const statStrElement = document.getElementById('stat-str');
         let leftPanel = document.getElementById('left-panel') || document.querySelector('.left-panel');
@@ -428,6 +416,7 @@ async function startGame(saveData) {
                 saveData.level        = PlayerStats.level[pid];
                 saveData.xp           = PlayerStats.xp[pid];
                 saveData.xpToNext     = PlayerStats.xpToNext[pid];
+                saveData.gold         = PlayerStats.gold[pid]; // SAUVEGARDE DE L'OR
 
                 saveData.attributes.str = BaseAttributes.strength[pid];
                 saveData.attributes.dex = BaseAttributes.dexterity[pid];
@@ -454,7 +443,7 @@ async function startGame(saveData) {
 
             inputSystem(world, delta);
             aiSystem(world, delta);
-            lifetimeSystem(world, delta); // On purge les projectiles et FX expirés
+            lifetimeSystem(world, delta);
             movementSystem(world, delta);
             spellSystem(world, delta);
             combatSystem(world, delta);
