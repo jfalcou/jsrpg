@@ -1,10 +1,11 @@
+// Fichier : systems/combat.js
 /**
  * @fileoverview Système gérant la physique de combat, la mort et l'XP.
  */
 
 import { defineQuery, removeEntity, hasComponent, addEntity, addComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
 import { Position, Collider, Enemy, Wall, Health, HitFlash, Player, PlayerStats, EnemyStats, Loot, Renderable, droppedItems, Dash, enemyTypeMap } from '../utils/components.js';
-import { buildWallHash, checkAABB } from '../utils/physics.js';
+import { checkAABB } from '../utils/physics.js';
 import { generateItem } from '../data/items/index.js';
 import { enemyRegistry } from '../data/enemies/index.js';
 
@@ -16,9 +17,6 @@ const hitFlashQuery = defineQuery([HitFlash]);
 
 export const damageNumbers = [];
 
-/**
- * Sélectionne un item dans la table et retourne ses infos (ID + metadata optionnelle)
- */
 function resolveLootTable(lootTable) {
     if (!lootTable || !lootTable.items || lootTable.items.length === 0) return null;
     if (Math.random() > lootTable.dropChance) return null;
@@ -27,7 +25,7 @@ function resolveLootTable(lootTable) {
     let roll = Math.random() * totalWeight;
     for (const item of lootTable.items) {
         roll -= item.weight;
-        if (roll <= 0) return item; // Retourne l'objet de config entier
+        if (roll <= 0) return item;
     }
     return null;
 }
@@ -79,7 +77,6 @@ export function createCombatSystem() {
         const enemies = enemyQuery(world);
         const players = playerQuery(world);
 
-        buildWallHash(world);
         const flashEntities = hitFlashQuery(world);
         for (let i = 0; i < flashEntities.length; i++) {
             const eid = flashEntities[i];
@@ -109,19 +106,15 @@ export function createCombatSystem() {
                 const logicalEnemyId = enemyTypeMap.get(eid);
                 const enemyDef = enemyRegistry[logicalEnemyId];
 
-                // GÉNÉRATION DU LOOT (Or inclus)
                 const lootEntry = resolveLootTable(enemyDef?.lootTable);
 
                 if (lootEntry) {
                     try {
                         const itemInstance = generateItem(lootEntry.id);
-
-                        // Si c'est de l'or, on calcule le montant
                         if (lootEntry.id === 'gold_coin' && lootEntry.goldRange) {
                             const [min, max] = lootEntry.goldRange;
                             itemInstance.amount = Math.floor(Math.random() * (max - min + 1)) + min;
                         }
-
                         spawnDropEntity(world, Position.x[eid], Position.y[eid], itemInstance);
                     } catch (err) {
                         console.error("Erreur loot :", err);
@@ -139,7 +132,7 @@ export function createCombatSystem() {
                         const nextXp = PlayerStats.xpToNext[pid] * 1.5;
                         PlayerStats.xpToNext[pid] = Math.floor(nextXp / 25) * 25;
 
-                        Health.current[pid] = Health.max[pid]; // Soin complet
+                        Health.current[pid] = Health.max[pid];
 
                         spawnDamageNumber(Position.x[pid], Position.y[pid] - 20, "NIVEAU SUPÉRIEUR !", "#FFD700", 24);
                     }

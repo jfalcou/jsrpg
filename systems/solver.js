@@ -3,17 +3,15 @@
  */
 
 import { Position, Velocity, Collider, Knockback, Player } from '../utils/components.js';
-import { checkAABB } from '../utils/physics.js';
+import { checkAABB, wallHash } from '../utils/physics.js';
 import { hasComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
 
-// Marge microscopique pour éviter de se superposer parfaitement avec la hitbox d'un mur (anti-tunneling)
 const EPSILON = 0.1;
 
-export function applyVelocityAndBounds(world, eid, delta, walls, worldWidth, worldHeight) {
+export function applyVelocityAndBounds(world, eid, delta, worldWidth, worldHeight) {
     let vx = Velocity.x[eid];
     let vy = Velocity.y[eid];
 
-    // Application du Knockback
     if (hasComponent(world, Knockback, eid)) {
         vx += Knockback.x[eid];
         vy += Knockback.y[eid];
@@ -27,44 +25,31 @@ export function applyVelocityAndBounds(world, eid, delta, walls, worldWidth, wor
     const w = Collider.width[eid];
     const h = Collider.height[eid];
 
-    // Mouvement X
+    // OPTIMISATION : On récupère uniquement les murs proches (marge de sécurité de 64px pour la vélocité)
+    const nearbyWalls = wallHash.query(Position.x[eid] - 32, Position.y[eid] - 32, w + 64, h + 64);
+
     if (vx !== 0) {
         Position.x[eid] += vx * delta;
-
-        // Limites du monde
         if (Position.x[eid] < 0) Position.x[eid] = 0;
         if (Position.x[eid] + w > worldWidth) Position.x[eid] = worldWidth - w;
 
-        // Collisions Murs X (Sliding avec Epsilon)
-        for (let j = 0; j < walls.length; j++) {
-            const wid = walls[j];
+        for (const wid of nearbyWalls) {
             if (checkAABB(Position.x[eid], Position.y[eid], w, h, Position.x[wid], Position.y[wid], Collider.width[wid], Collider.height[wid])) {
-                if (vx > 0) {
-                    Position.x[eid] = Position.x[wid] - w - EPSILON;
-                } else if (vx < 0) {
-                    Position.x[eid] = Position.x[wid] + Collider.width[wid] + EPSILON;
-                }
+                if (vx > 0) Position.x[eid] = Position.x[wid] - w - EPSILON;
+                else if (vx < 0) Position.x[eid] = Position.x[wid] + Collider.width[wid] + EPSILON;
             }
         }
     }
 
-    // Mouvement Y
     if (vy !== 0) {
         Position.y[eid] += vy * delta;
-
-        // Limites du monde
         if (Position.y[eid] < 0) Position.y[eid] = 0;
         if (Position.y[eid] + h > worldHeight) Position.y[eid] = worldHeight - h;
 
-        // Collisions Murs Y (Sliding avec Epsilon)
-        for (let j = 0; j < walls.length; j++) {
-            const wid = walls[j];
+        for (const wid of nearbyWalls) {
             if (checkAABB(Position.x[eid], Position.y[eid], w, h, Position.x[wid], Position.y[wid], Collider.width[wid], Collider.height[wid])) {
-                if (vy > 0) {
-                    Position.y[eid] = Position.y[wid] - h - EPSILON;
-                } else if (vy < 0) {
-                    Position.y[eid] = Position.y[wid] + Collider.height[wid] + EPSILON;
-                }
+                if (vy > 0) Position.y[eid] = Position.y[wid] - h - EPSILON;
+                else if (vy < 0) Position.y[eid] = Position.y[wid] + Collider.height[wid] + EPSILON;
             }
         }
     }
@@ -80,7 +65,8 @@ export function applyFlocking(world, eidA, spatialHash) {
     const neighbors = spatialHash.query(xa, ya, wa, ha);
 
     for (const eidB of neighbors) {
-        if (eidA === eidB) continue;
+        // OPTIMISATION : Ignore si A >= B pour ne traiter chaque paire qu'une seule fois
+        if (eidA >= eidB) continue;
 
         const xb = Position.x[eidB];
         const yb = Position.y[eidB];
@@ -98,7 +84,6 @@ export function applyFlocking(world, eidA, spatialHash) {
         let dy = cyA - cyB;
         let dist = Math.sqrt(dx * dx + dy * dy);
 
-        // Empêcher la division par zéro si superposition parfaite
         if (dist === 0) {
             dx = Math.random() - 0.5;
             dy = Math.random() - 0.5;
@@ -112,18 +97,16 @@ export function applyFlocking(world, eidA, spatialHash) {
 
         if (overlap > 0) {
             if (!isPlayerA && !isPlayerB) {
-                // Ennemi (A) vs Ennemi (B) -> Ils se repoussent mutuellement
+                // Les deux sont affectés symétriquement en une seule passe
                 const push = overlap * 0.5;
                 Position.x[eidA] += dx * push;
                 Position.y[eidA] += dy * push;
                 Position.x[eidB] -= dx * push;
                 Position.y[eidB] -= dy * push;
             } else if (isPlayerA && !isPlayerB) {
-                // Joueur (A) vs Ennemi (B) -> Le joueur reste solide, l'ennemi glisse
                 Position.x[eidB] -= dx * overlap;
                 Position.y[eidB] -= dy * overlap;
             } else if (!isPlayerA && isPlayerB) {
-                // Ennemi (A) vs Joueur (B) -> Le joueur reste solide, l'ennemi glisse
                 Position.x[eidA] += dx * overlap;
                 Position.y[eidA] += dy * overlap;
             }

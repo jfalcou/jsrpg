@@ -3,6 +3,7 @@ export const UI_CONFIG = {
     equipGrid: { width: 3, height: 5 },
     cell: 80,
     gap: 2,
+    lootExpiry: 120000,
     equipment: [
         { id: 'helm'  , label: 'Tête'   , col: 2, row: 1, w: 1, h: 1 },
         { id: 'amulet', label: 'Cou'    , col: 3, row: 1, w: 1, h: 1 },

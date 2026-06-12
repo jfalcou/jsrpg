@@ -1,12 +1,13 @@
 /**
- * @fileoverview Système gérant le ramassage des objets au sol.
+ * @fileoverview Système gérant le ramassage des objets au sol et leur cycle de vie.
  */
 
 import { defineQuery, removeEntity } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
 import { Position, Collider, Player, Loot, droppedItems, PlayerStats } from '../utils/components.js';
 import { checkAABB } from '../utils/physics.js';
 import { attemptPickup } from './ui.js';
-import { spawnDamageNumber } from './combat.js'; // Pour afficher un retour visuel
+import { spawnDamageNumber } from './combat.js';
+import { UI_CONFIG } from '../ui/config.js';
 
 const playerQuery = defineQuery([Player, Position, Collider]);
 const lootQuery = defineQuery([Loot, Position, Collider]);
@@ -16,9 +17,6 @@ export function createLootSystem() {
     return function lootSystem(world) {
         const players = playerQuery(world);
         const loots = lootQuery(world);
-
-        if (players.length === 0) return world;
-        const pid = players[0];
         const now = Date.now();
 
         for (let i = 0; i < loots.length; i++) {
@@ -28,9 +26,20 @@ export function createLootSystem() {
                 dropTimes.set(lid, now);
             }
 
-            if (now - dropTimes.get(lid) < 800) {
+            const itemAge = now - dropTimes.get(lid);
+
+            if (itemAge > UI_CONFIG.lootExpiry) {
+                droppedItems.delete(lid);
+                dropTimes.delete(lid);
+                removeEntity(world, lid);
                 continue;
             }
+
+            if (players.length === 0 || itemAge < 800) {
+                continue;
+            }
+
+            const pid = players[0];
 
             if (checkAABB(
                 Position.x[pid], Position.y[pid], Collider.width[pid], Collider.height[pid],
@@ -38,7 +47,6 @@ export function createLootSystem() {
             )) {
                 const itemData = droppedItems.get(lid);
 
-                // INTERCEPTION : Si c'est de la monnaie, on l'ajoute directement aux stats
                 if (itemData && itemData.type === 'currency') {
                     PlayerStats.gold[pid] += itemData.amount;
                     spawnDamageNumber(Position.x[pid], Position.y[pid] - 30, `+${itemData.amount} Or`, '#FFD700', 22);
@@ -47,7 +55,6 @@ export function createLootSystem() {
                     dropTimes.delete(lid);
                     removeEntity(world, lid);
                 }
-                // Sinon, c'est un objet classique pour le sac
                 else if (attemptPickup(itemData)) {
                     droppedItems.delete(lid);
                     dropTimes.delete(lid);
