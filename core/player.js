@@ -3,7 +3,7 @@
  */
 
 import { addEntity, addComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Velocity, Player, Renderable, Facing, Collider, Dash, Health, PlayerStats, Character, Attributes, BaseAttributes } from '../utils/components.js';
+import { Position, Velocity, Player, Renderable, Facing, Collider, Dash, Health, PlayerStats, Character, Attributes, BaseAttributes, State, STATES } from '../utils/components.js';
 
 export function spawnPlayer(world, saveData, startX, startY) {
     const hero = addEntity(world);
@@ -20,6 +20,7 @@ export function spawnPlayer(world, saveData, startX, startY) {
     addComponent(world, PlayerStats, hero);
     addComponent(world, BaseAttributes, hero);
     addComponent(world, Attributes, hero);
+    addComponent(world, State, hero);
 
     // Initialisation depuis la sauvegarde
     Health.max[hero]     = saveData.maxHealth;
@@ -54,6 +55,7 @@ export function spawnPlayer(world, saveData, startX, startY) {
     Collider.width[hero]  = 32;
     Collider.height[hero] = 32;
     Renderable.type[hero] = 0;
+    State.current[hero] = STATES.IDLE;
 
     // Initialisation du Dash
     Dash.active[hero]     = 0;

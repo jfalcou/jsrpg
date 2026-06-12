@@ -55,3 +55,16 @@ export function resetComponents() {
     droppedItems.clear();
     enemyTypeMap.clear();
 }
+// ==========================================
+// MACHINE À ÉTATS (FSM)
+// ==========================================
+export const STATES = {
+    IDLE: 0,
+    RUN: 1,
+    ATTACK: 2,
+    DASH: 3,
+    STUN: 4,
+    DEAD: 5
+};
+
+export const State = defineComponent({ current: Types.ui8 });

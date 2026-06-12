@@ -2,7 +2,7 @@
  * @fileoverview Instanciation des ennemis et registre des scripts visuels.
  */
 import { addEntity, addComponent } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Velocity, Enemy, Renderable, Collider, Health, Knockback, HitFlash, Character, AiTracker, EnemyStats, enemyTypeMap } from '../utils/components.js';
+import { Position, Velocity, Enemy, Renderable, Collider, Health, Knockback, HitFlash, Character, AiTracker, EnemyStats, enemyTypeMap, State, STATES } from '../utils/components.js';
 import { GameData } from '../core/dataManager.js';
 
 // REGISTRE DES SCRIPTS (La logique graphique qui ne va pas dans le JSON)
@@ -42,7 +42,9 @@ export function spawnEnemy(world, typeId, x, y) {
     addComponent(world, HitFlash, eid);
     addComponent(world, Character, eid);
     addComponent(world, EnemyStats, eid);
+    addComponent(world, State, eid);
 
+    State.current[eid] = STATES.IDLE;
     Position.x[eid] = x;
     Position.y[eid] = y;
     Velocity.x[eid] = 0;

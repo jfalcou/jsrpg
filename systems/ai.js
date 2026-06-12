@@ -1,20 +1,13 @@
 /**
- * @fileoverview Système gérant l'Intelligence Artificielle (Tracking).
+ * @fileoverview Système gérant l'Intelligence Artificielle (Tracking) via FSM.
  */
 
 import { defineQuery } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
-import { Position, Velocity, Player, Enemy, AiTracker } from '../utils/components.js';
+import { Position, Velocity, Player, Enemy, AiTracker, State, STATES } from '../utils/components.js';
 
-// L'IA ne cherche plus "tous les ennemis", mais "ceux qui ont le tag AiTracker"
-const trackerQuery = defineQuery([Enemy, Position, Velocity, AiTracker]);
+const trackerQuery = defineQuery([Enemy, Position, Velocity, AiTracker, State]);
 const playerQuery = defineQuery([Player, Position]);
 
-/**
- * Genere un système d'IA basique où les ennemis traquent le joueur s'il est à portée, et s'arrêtent s'il s'éloigne trop.
- * L'ennemi ne peut pas traverser les murs grâce au système de collision, mais il ne fait pas de pathfinding
- * avancé (il se contente de foncer droit vers le joueur).
- * @returns Une fonction système à utiliser dans le jeu.
- */
 export function createAiSystem() {
     return function aiSystem(world, delta) {
         const players = playerQuery(world);
@@ -28,6 +21,12 @@ export function createAiSystem() {
 
         for (let i = 0; i < trackers.length; i++) {
             const eid = trackers[i];
+
+            // PRIORITÉ : Si le monstre est mort ou étourdi, l'IA ne fait rien
+            if (State.current[eid] === STATES.DEAD || State.current[eid] === STATES.STUN) {
+                continue;
+            }
+
             const ex = Position.x[eid];
             const ey = Position.y[eid];
 
@@ -43,6 +42,7 @@ export function createAiSystem() {
             if (dist > deactRadius) {
                 Velocity.x[eid] = 0;
                 Velocity.y[eid] = 0;
+                State.current[eid] = STATES.IDLE;
                 continue;
             }
 
@@ -50,6 +50,7 @@ export function createAiSystem() {
             if (dist <= actRadius && dist > 0) {
                 Velocity.x[eid] = (dx / dist) * speed;
                 Velocity.y[eid] = (dy / dist) * speed;
+                State.current[eid] = STATES.RUN;
             }
         }
 
