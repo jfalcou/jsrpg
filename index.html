@@ -13,7 +13,12 @@
 
     <div id="screen-main-menu" class="fullscreen-menu">
         <h1 class="game-title">Champions Of Fate</h1>
-        <div class="menu-buttons">
+
+        <div id="loading-indicator" style="color: #d4af37; font-family: 'Uncial Antiqua', cursive; font-size: 24px; animation: pulse 1.5s infinite; margin-top: 20px;">
+            Invocation de l'univers...
+        </div>
+
+        <div class="menu-buttons hidden" id="main-menu-buttons">
             <button id="btn-continue" class="menu-btn hidden">Select A Champion</button>
             <button id="btn-new" class="menu-btn">New Champion</button>
         </div>
@@ -76,10 +81,8 @@
     </div>
 
     <div id="app-container" class="hidden">
-
         <div class="side-panel" id="left-panel">
             <h2 class="panel-title" id="ui-char-name-title">Unknown</h2>
-
             <div class="top-profile">
                 <div class="profile-avatar"></div>
                 <div class="profile-stats">
@@ -93,24 +96,19 @@
                     </div>
                 </div>
             </div>
-
             <div class="stats-table">
                 <div>Strength:</div> <div id="ui-str" class="stat-val">25</div>
                 <div>Dexterity:</div> <div id="ui-dex" class="stat-val">15</div>
                 <div>Constitution:</div> <div id="ui-vit" class="stat-val">20</div>
                 <div>Willpower:</div> <div id="ui-ene" class="stat-val">10</div>
             </div>
-
             <div class="separator-line"></div>
-
             <h3 class="sub-title">Combat</h3>
             <div class="extended-stats">
                 <div class="stat-row"><span>Armor:</span> <span id="ui-armor" class="stat-val" style="color:#aaa;">50</span></div>
                 <div class="stat-row"><span>DPS:</span> <span id="ui-dps" class="stat-val" style="color:#ff4a4a;">145</span></div>
             </div>
-
             <div class="separator-line"></div>
-
             <h3 class="sub-title">Resistances</h3>
             <div class="extended-stats">
                 <div class="stat-row"><span>Fire:</span> <span id="ui-res-fire" style="color:#ff4136;">10%</span></div>
@@ -124,16 +122,13 @@
 
         <div id="center-panel">
             <canvas id="game-canvas"></canvas>
-
             <div class="bottom-hud">
                 <div class="orb-container">
                     <div id="ui-hp-bar" class="orb-fill bg-hp" style="height: 100%;"></div>
                     <div class="orb-glare"></div>
                     <span id="ui-hp-text" class="orb-text">100</span>
                 </div>
-
                 <div class="action-bar" id="action-bar"></div>
-
                 <div class="orb-container">
                     <div id="ui-mp-bar" class="orb-fill bg-mp" style="height: 100%;"></div>
                     <div class="orb-glare"></div>
@@ -148,20 +143,16 @@
                 <button class="tab-btn">Spells</button>
                 <button class="tab-btn">Quests</button>
             </div>
-
             <div class="tab-content">
                 <div class="equipment"></div>
-
                 <div class="inventory-section">
                     <div class="inventory-grid"></div>
-
                     <div class="gold-counter">
                         <span style="color:#d4af37; font-size:22px; font-weight:bold;">Or: 13 609</span>
                     </div>
                 </div>
             </div>
         </div>
-
     </div>
 
     <div id="game-over" class="hidden">

@@ -18,6 +18,22 @@ import { Storage } from './utils/storage.js';
 import { races, getRace } from './races/index.js';
 import { spawnEnemy } from './enemies/index.js';
 
+// ============================================================================
+// 0. CHARGEMENT TERMINÉ : AFFICHAGE DE L'INTERFACE
+// Comme ce code est placé *après* les imports, il ne s'exécutera que lorsque
+// tous les fichiers JS et le CDN auront fini de télécharger.
+// ============================================================================
+const loadingIndicator = document.getElementById('loading-indicator');
+const mainMenuButtons = document.getElementById('main-menu-buttons');
+if (loadingIndicator && mainMenuButtons) {
+    loadingIndicator.classList.add('hidden');
+    mainMenuButtons.classList.remove('hidden');
+}
+
+// ============================================================================
+// 1. GESTION DES MENUS & ETATS
+// ============================================================================
+
 const screenMenu     = document.getElementById('screen-main-menu');
 const screenCreation = document.getElementById('screen-char-creation');
 const screenSelect   = document.getElementById('screen-char-select');
@@ -26,13 +42,13 @@ const btnContinue    = document.getElementById('btn-continue');
 const btnNew         = document.getElementById('btn-new');
 const btnBackToMain  = document.getElementById('btn-back-to-main');
 
-btnContinue.addEventListener('pointerdown', () => {
+btnContinue.addEventListener('click', () => {
     screenMenu.classList.add('hidden');
     screenSelect.classList.remove('hidden');
     renderCharacterList();
 });
 
-btnBackToMain.addEventListener('pointerdown', () => {
+btnBackToMain.addEventListener('click', () => {
     screenSelect.classList.add('hidden');
     screenMenu.classList.remove('hidden');
 });
@@ -53,12 +69,12 @@ function renderCharacterList() {
             <button class="btn-delete-char" data-id="${save.id}">Delete</button>
         `;
 
-        card.addEventListener('pointerdown', (e) => {
+        card.addEventListener('click', (e) => {
             if (e.target.classList.contains('btn-delete-char')) return;
             startGame(save);
         });
 
-        card.querySelector('.btn-delete-char').addEventListener('pointerdown', () => {
+        card.querySelector('.btn-delete-char').addEventListener('click', () => {
             if (confirm(`Are you sure you want to send ${save.name} to oblivion?`)) {
                 Storage.delete(save.id);
                 renderCharacterList();
@@ -74,7 +90,7 @@ function renderCharacterList() {
     });
 }
 
-btnNew.addEventListener('pointerdown', () => {
+btnNew.addEventListener('click', () => {
     screenMenu.classList.add('hidden');
     screenCreation.classList.remove('hidden');
     resetCreationUI();
@@ -113,6 +129,7 @@ function resetCreationUI() {
 
     raceSelect.addEventListener('change', () => {
         const selectedRace = getRace(raceSelect.value);
+
         if (selectedRace) {
             raceDescription.classList.add('fade-out');
             setTimeout(() => {
@@ -151,20 +168,20 @@ document.getElementById('char-race').addEventListener('change', () => {
 });
 
 ['str', 'dex', 'vit', 'ene'].forEach(stat => {
-    document.getElementById(`add-${stat}`).addEventListener('pointerdown', () => {
+    document.getElementById(`add-${stat}`).addEventListener('click', () => {
         if (ptsLeft > 0) { curAttr[stat]++; ptsLeft--; updateCreationUI(); }
     });
-    document.getElementById(`sub-${stat}`).addEventListener('pointerdown', () => {
+    document.getElementById(`sub-${stat}`).addEventListener('click', () => {
         if (curAttr[stat] > baseAttr[stat]) { curAttr[stat]--; ptsLeft++; updateCreationUI(); }
     });
 });
 
-document.getElementById('btn-cancel').addEventListener('pointerdown', () => {
+document.getElementById('btn-cancel').addEventListener('click', () => {
     screenCreation.classList.add('hidden');
     screenMenu.classList.remove('hidden');
 });
 
-document.getElementById('btn-start').addEventListener('pointerdown', () => {
+document.getElementById('btn-start').addEventListener('click', () => {
     const name     = document.getElementById('char-name').value || "Anonymous Champion";
     const raceId   = document.getElementById('char-race').value;
     const raceData = getRace(raceId);
@@ -177,7 +194,6 @@ document.getElementById('btn-start').addEventListener('pointerdown', () => {
         level: 1,
         xp: 0,
         xpToNext: 1000,
-        gold: 0, // INITIALISATION DE L'OR
         attributes: { ...curAttr },
         health: raceData.baseStats.hp,
         maxHealth: raceData.baseStats.hp,
@@ -191,7 +207,16 @@ document.getElementById('btn-start').addEventListener('pointerdown', () => {
     startGame(newSave);
 });
 
-document.getElementById('restart-btn').addEventListener('pointerdown', () => location.reload());
+// Retour visuel immédiat pour le bouton Restart (qui exécute un rechargement lourd)
+document.getElementById('restart-btn').addEventListener('click', (e) => {
+    e.target.innerText = "Réveil en cours...";
+    e.target.style.pointerEvents = 'none'; // Empêche de spammer le clic pendant le rechargement
+    location.reload();
+});
+
+// ============================================================================
+// 2. MOTEUR DE JEU
+// ============================================================================
 
 const SCREEN_WIDTH  = 1600;
 const SCREEN_HEIGHT = 900;
@@ -271,7 +296,6 @@ async function startGame(saveData) {
         PlayerStats.level[hero]     = saveData.level;
         PlayerStats.xp[hero]        = saveData.xp;
         PlayerStats.xpToNext[hero]  = saveData.xpToNext;
-        PlayerStats.gold[hero]      = saveData.gold || 0; // CHARGEMENT DE L'OR
 
         BaseAttributes.strength[hero]   = saveData.attributes.str;
         BaseAttributes.dexterity[hero]  = saveData.attributes.dex;
@@ -380,7 +404,7 @@ async function startGame(saveData) {
                 manualSaveBtn.style.boxShadow = 'none';
             });
 
-            manualSaveBtn.addEventListener('pointerdown', () => {
+            manualSaveBtn.addEventListener('click', () => {
                 saveProgress(true);
             });
 
@@ -416,7 +440,6 @@ async function startGame(saveData) {
                 saveData.level        = PlayerStats.level[pid];
                 saveData.xp           = PlayerStats.xp[pid];
                 saveData.xpToNext     = PlayerStats.xpToNext[pid];
-                saveData.gold         = PlayerStats.gold[pid]; // SAUVEGARDE DE L'OR
 
                 saveData.attributes.str = BaseAttributes.strength[pid];
                 saveData.attributes.dex = BaseAttributes.dexterity[pid];

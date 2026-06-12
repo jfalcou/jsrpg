@@ -361,3 +361,18 @@ body {
 .char-race-description.fade-out {
     opacity: 0;
 }
+
+
+@keyframes pulse {
+    0% { opacity: 0.4; }
+    50% { opacity: 1; }
+    100% { opacity: 0.4; }
+}
+
+/* MODIFICATION : Optimisation hardcore pour éviter les clics ignorés */
+.menu-btn, #game-over button, .btn-delete-char {
+    touch-action: manipulation; /* Force le navigateur à réagir à la milliseconde */
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
