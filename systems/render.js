@@ -7,6 +7,7 @@ import { Position, Renderable, Player, Facing, Collider, HitFlash, droppedItems,
 import { fxRenderers } from '../data/spells/index.js';
 import { enemyRenderers } from '../data/enemies_index.js';
 import { damageNumbers } from './combat.js';
+import { UI_CONFIG } from '../ui/config.js';
 
 // NOUVEAU : On importe le dictionnaire généré par le découpeur automatique
 import { globalAnimations } from '../core/spriteParser.js';
@@ -154,10 +155,12 @@ export function createRenderSystem(app, worldContainer, camera, screenWidth, scr
         const players = playerQuery(world);
         if (players.length > 0) {
             const pid = players[0];
-            camera.x = (screenWidth / 2) - (Position.x[pid] + 16);
-            camera.y = (screenHeight / 2) - (Position.y[pid] + 16);
-            worldContainer.x = camera.x;
-            worldContainer.y = camera.y;
+            const zoom = UI_CONFIG.zoomLevel;
+
+            camera.x = (screenWidth / 2 / zoom) - (Position.x[pid] + 16);
+            camera.y = (screenHeight / 2 / zoom) - (Position.y[pid] + 16);
+            worldContainer.x = camera.x * zoom;
+            worldContainer.y = camera.y * zoom;
         }
 
         const entities = renderQuery(world);

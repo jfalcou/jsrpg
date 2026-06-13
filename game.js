@@ -12,6 +12,7 @@ import { initMenus } from './ui/menus.js';
 import { initSaveManager } from './core/saveManager.js';
 import { spawnPlayer } from './core/player.js';
 import { loadLevel } from './core/levelManager.js';
+import { UI_CONFIG } from '../ui/config.js';
 
 // IMPORTS ECS
 import { createWorld, defineQuery } from 'https://cdn.jsdelivr.net/npm/bitecs@0.3.40/+esm';
@@ -57,6 +58,8 @@ async function bootstrap() {
             backgroundColor: 0x050505,
             preference: 'webgpu'
         });
+
+        PIXI.Filter.defaultOptions.antialias = false;
 
         // 2. Chargement des images brutes et découpage automatique
         PIXI.Assets.add({ alias: 'hero_sheet', src: './medias/sprites/hero.png' });
@@ -130,6 +133,7 @@ async function startGame(saveData) {
 
     try {
         const worldContainer = new PIXI.Container();
+        worldContainer.scale.set(UI_CONFIG.zoomLevel);
         app.stage.addChild(worldContainer);
 
         // Dessin de la grille du sol

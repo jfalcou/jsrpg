@@ -1,4 +1,5 @@
 export const UI_CONFIG = {
+    zoomLevel: 2,
     bag: { width: 5, height: 4 },
     equipGrid: { width: 3, height: 5 },
     cell: 80,
