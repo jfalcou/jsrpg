@@ -1,0 +1,13 @@
+# Ignore everything by default
+*
+
+# But allow traversal into all directories
+!*/
+
+# Allow specific file types in any folder
+!*.js
+!*.html
+!*.css
+!*.png
+!*.jpg
+!.gitignore
